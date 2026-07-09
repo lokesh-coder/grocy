@@ -34,10 +34,10 @@ function RecordingView() {
 	return (
 		<div className="app-shell">
 			<header className="top-bar">
-				<span className="app-title">மளிகை பட்டியல்</span>
+				<span className="app-title">🛒 மளிகை பட்டியல்</span>
 				{hasContent && (
 					<button className="new-list-button" onClick={startNewList}>
-						புதிய பட்டியல்
+						+ புதிய பட்டியல்
 					</button>
 				)}
 			</header>

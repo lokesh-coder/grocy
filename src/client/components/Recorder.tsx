@@ -58,13 +58,18 @@ export function Recorder({ transcript, status, onSegment }: Props) {
 
 	return (
 		<div className="pane recorder-pane">
-			<h2>பேசுங்கள்</h2>
+			<h2>
+				<span className="heading-icon">🎙️</span>பேசுங்கள்
+			</h2>
 
 			<button className={`mic-button ${isRecording ? "recording" : ""}`} onClick={isRecording ? stop : start}>
 				{isRecording ? "⏹" : "🎙"}
 			</button>
 
-			<p className="status-line">{statusText(isRecording, status)}</p>
+			<p className={`status-line ${isRecording ? "is-live" : ""}`}>
+				{isRecording && <span className={`status-dot ${status === "extracting" ? "busy" : ""}`} />}
+				{statusText(isRecording, status)}
+			</p>
 
 			{error && <p className="error-line">{error}</p>}
 
@@ -74,7 +79,8 @@ export function Recorder({ transcript, status, onSegment }: Props) {
 					{transcript}
 					{transcript && interimText ? " " : ""}
 					<span className="interim-text">{interimText}</span>
-					{!transcript && !interimText && "…"}
+					{!transcript && !interimText && <span className="placeholder-text">பேசத் தொடங்குங்கள்…</span>}
+					{isRecording && <span className="live-cursor" />}
 				</p>
 			</div>
 		</div>

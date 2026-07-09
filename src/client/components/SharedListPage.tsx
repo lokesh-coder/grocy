@@ -65,7 +65,7 @@ export function SharedListPage({ slug }: Props) {
 
 	return (
 		<div className="shared-page">
-			<h1>மளிகை பட்டியல்</h1>
+			<h1>🛒 மளிகை பட்டியல்</h1>
 			{grouped.map((group) => (
 				<section key={group.category.id} className="category-group">
 					<h3>{group.category.ta}</h3>
@@ -75,9 +75,11 @@ export function SharedListPage({ slug }: Props) {
 								<label>
 									<input
 										type="checkbox"
+										className="check-input"
 										checked={item.ticked}
 										onChange={(event) => toggle(item.id, event.target.checked)}
 									/>
+									<span className="check-box" aria-hidden="true" />
 									<span className="item-name">{item.name}</span>
 									<span className="item-qty">{item.quantity}</span>
 								</label>

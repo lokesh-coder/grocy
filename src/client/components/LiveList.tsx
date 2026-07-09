@@ -46,7 +46,9 @@ export function LiveList({ items, onFinalize }: Props) {
 
 	return (
 		<div className="pane list-pane">
-			<h2>பட்டியல்</h2>
+			<h2>
+				<span className="heading-icon">🛒</span>பட்டியல்
+			</h2>
 
 			{items.length === 0 && <p className="empty-hint">பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>}
 
@@ -66,13 +68,13 @@ export function LiveList({ items, onFinalize }: Props) {
 
 			{items.length > 0 && !shareUrl && (
 				<button className="done-button" disabled={finalizing} onClick={handleDone}>
-					{finalizing ? "முடிக்கிறேன்…" : "முடிந்தது"}
+					{finalizing ? "முடிக்கிறேன்…" : "✓ முடிந்தது"}
 				</button>
 			)}
 
 			{shareUrl && (
 				<div className="share-box">
-					<p>பட்டியல் தயார்!</p>
+					<p>🎉 பட்டியல் தயார்!</p>
 					<a
 						className="whatsapp-link"
 						href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
@@ -81,7 +83,9 @@ export function LiveList({ items, onFinalize }: Props) {
 					>
 						WhatsApp-இல் பகிரவும்
 					</a>
-					<button onClick={handleShare}>{copied ? "நகலெடுக்கப்பட்டது!" : "இணைப்பை நகலெடு"}</button>
+					<button className="copy-button" onClick={handleShare}>
+						{copied ? "✓ நகலெடுக்கப்பட்டது!" : "🔗 இணைப்பை நகலெடு"}
+					</button>
 				</div>
 			)}
 		</div>
