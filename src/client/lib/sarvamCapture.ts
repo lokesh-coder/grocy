@@ -29,7 +29,15 @@ function bufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export async function startSarvamCapture(options: SarvamCaptureOptions): Promise<SarvamCaptureHandle> {
-	const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+	// Chrome's default audio processing (echo cancellation, noise suppression,
+	// auto-gain) is tuned for human listening on voice calls, not for feeding
+	// a speech-recognition model - it can strip acoustic detail or introduce
+	// artifacts that hurt accuracy. Sarvam says it handles raw background
+	// noise robustly on its own, so send it unprocessed audio rather than
+	// double-processing.
+	const stream = await navigator.mediaDevices.getUserMedia({
+		audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+	});
 	const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
 
 	try {
