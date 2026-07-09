@@ -1,0 +1,45 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "grocy",
+	"main": "./src/server/index.ts",
+	"compatibility_date": "2026-07-09",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/agents/*"]
+	},
+	"ai": {
+		"binding": "AI"
+	},
+	"d1_databases": [
+		{
+			// Run `wrangler d1 create grocy-db` (after `wrangler login`) and replace
+			// this placeholder with the real database_id it prints out.
+			"binding": "DB",
+			"database_name": "grocy-db",
+			"database_id": "00000000-0000-0000-0000-000000000000"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "ListSessionAgent",
+				"class_name": "ListSessionAgent"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["ListSessionAgent"]
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true
+}

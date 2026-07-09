@@ -1,0 +1,89 @@
+import { useMemo, useState } from "react";
+import { CATEGORIES } from "../../shared/categories";
+import type { ListItem } from "../../shared/types";
+
+type Props = {
+	items: ListItem[];
+	onFinalize: () => Promise<{ slug: string }>;
+};
+
+export function LiveList({ items, onFinalize }: Props) {
+	const [shareUrl, setShareUrl] = useState<string | null>(null);
+	const [finalizing, setFinalizing] = useState(false);
+	const [copied, setCopied] = useState(false);
+
+	const grouped = useMemo(() => {
+		return CATEGORIES.map((category) => ({
+			category,
+			items: items.filter((item) => item.category === category.id),
+		})).filter((group) => group.items.length > 0);
+	}, [items]);
+
+	async function handleDone() {
+		setFinalizing(true);
+		try {
+			const { slug } = await onFinalize();
+			setShareUrl(`${window.location.origin}/list/${slug}`);
+		} finally {
+			setFinalizing(false);
+		}
+	}
+
+	async function handleShare() {
+		if (!shareUrl) return;
+		if (navigator.share) {
+			try {
+				await navigator.share({ title: "மளிகை பட்டியல்", url: shareUrl });
+				return;
+			} catch {
+				// user cancelled or share failed - fall through to clipboard
+			}
+		}
+		await navigator.clipboard.writeText(shareUrl);
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
+	}
+
+	return (
+		<div className="pane list-pane">
+			<h2>பட்டியல்</h2>
+
+			{items.length === 0 && <p className="empty-hint">பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>}
+
+			{grouped.map((group) => (
+				<section key={group.category.id} className="category-group">
+					<h3>{group.category.ta}</h3>
+					<ul>
+						{group.items.map((item) => (
+							<li key={item.id}>
+								<span className="item-name">{item.name}</span>
+								<span className="item-qty">{item.quantity}</span>
+							</li>
+						))}
+					</ul>
+				</section>
+			))}
+
+			{items.length > 0 && !shareUrl && (
+				<button className="done-button" disabled={finalizing} onClick={handleDone}>
+					{finalizing ? "முடிக்கிறேன்…" : "முடிந்தது"}
+				</button>
+			)}
+
+			{shareUrl && (
+				<div className="share-box">
+					<p>பட்டியல் தயார்!</p>
+					<a
+						className="whatsapp-link"
+						href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
+						target="_blank"
+						rel="noreferrer"
+					>
+						WhatsApp-இல் பகிரவும்
+					</a>
+					<button onClick={handleShare}>{copied ? "நகலெடுக்கப்பட்டது!" : "இணைப்பை நகலெடு"}</button>
+				</div>
+			)}
+		</div>
+	);
+}

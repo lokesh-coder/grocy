@@ -1,0 +1,162 @@
+:root {
+	color-scheme: light dark;
+	font-family: "Noto Sans Tamil", "Noto Sans", system-ui, sans-serif;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	background: light-dark(#f7f5f2, #14141a);
+	color: light-dark(#1b1b1f, #f0f0f2);
+}
+
+.app-layout {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	min-height: 100vh;
+}
+
+@media (max-width: 720px) {
+	.app-layout {
+		grid-template-columns: 1fr;
+	}
+}
+
+.pane {
+	padding: 1.5rem;
+	overflow-y: auto;
+}
+
+.recorder-pane {
+	border-right: 1px solid light-dark(#ddd, #333);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 0.75rem;
+}
+
+.mic-button {
+	width: 96px;
+	height: 96px;
+	border-radius: 50%;
+	border: none;
+	font-size: 2.5rem;
+	cursor: pointer;
+	background: light-dark(#2a6f5e, #3fae91);
+	color: white;
+	transition: transform 80ms ease-out, background 200ms;
+}
+
+.mic-button.recording {
+	background: light-dark(#b3331f, #e35b45);
+}
+
+.status-line {
+	color: light-dark(#555, #aaa);
+	min-height: 1.2em;
+}
+
+.error-line {
+	color: #d33;
+}
+
+.transcript-box {
+	width: 100%;
+	margin-top: 1rem;
+	padding: 1rem;
+	border-radius: 12px;
+	background: light-dark(#ffffff, #1e1e26);
+	text-align: left;
+}
+
+.transcript-box h3 {
+	margin: 0 0 0.5rem;
+	font-size: 0.9rem;
+	opacity: 0.7;
+}
+
+.list-pane {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.empty-hint {
+	opacity: 0.6;
+}
+
+.category-group h3 {
+	margin-bottom: 0.4rem;
+}
+
+.category-group ul {
+	list-style: none;
+	margin: 0 0 1rem;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.category-group li {
+	display: flex;
+	justify-content: space-between;
+	padding: 0.6rem 0.8rem;
+	border-radius: 10px;
+	background: light-dark(#ffffff, #1e1e26);
+}
+
+.category-group li.ticked {
+	opacity: 0.5;
+	text-decoration: line-through;
+}
+
+.category-group li label {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	width: 100%;
+	cursor: pointer;
+}
+
+.item-qty {
+	opacity: 0.7;
+	margin-left: 0.5rem;
+}
+
+.done-button {
+	align-self: flex-start;
+	padding: 0.7rem 1.5rem;
+	border: none;
+	border-radius: 999px;
+	background: light-dark(#2a6f5e, #3fae91);
+	color: white;
+	font-size: 1rem;
+	cursor: pointer;
+}
+
+.share-box {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.6rem;
+	padding: 1rem;
+	border-radius: 12px;
+	background: light-dark(#eef7f2, #16241f);
+}
+
+.whatsapp-link {
+	color: #25d366;
+	font-weight: 600;
+}
+
+.shared-page {
+	max-width: 640px;
+	margin: 0 auto;
+	padding: 1.5rem;
+}
