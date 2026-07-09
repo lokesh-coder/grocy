@@ -2,10 +2,16 @@
 // so Whisper (which only accepts full audio clips, not a live stream) can be called
 // repeatedly to produce a transcript that feels like it's arriving in real time.
 
+// Whisper transcribes each chunk with no knowledge of what came before or
+// after it, so cutting too eagerly (short silence hold, short max length)
+// slices words and phrases apart mid-utterance and produces garbled text.
+// These are deliberately generous - the "live" feel comes from broadcasting
+// the transcript as soon as each chunk finishes (see list-session.ts), not
+// from cutting chunks aggressively.
 const SILENCE_RMS_THRESHOLD = 0.02;
-const SILENCE_HOLD_MS = 500;
-const MAX_CHUNK_MS = 4000;
-const MIN_CHUNK_MS = 600;
+const SILENCE_HOLD_MS = 1100;
+const MAX_CHUNK_MS = 10000;
+const MIN_CHUNK_MS = 1500;
 const POLL_INTERVAL_MS = 100;
 
 export type ChunkerHandle = {
