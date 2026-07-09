@@ -1,60 +1,46 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import {
-	isSpeechRecognitionSupported,
-	startLiveTranscription,
-	type LiveTranscriptionHandle,
-} from "../lib/liveTranscription";
+import { useCallback, useRef, useState } from "react";
+import { startSarvamCapture, type SarvamCaptureHandle } from "../lib/sarvamCapture";
 import type { SessionState } from "../../shared/types";
 
 type Props = {
 	transcript: string;
 	status: SessionState["status"];
-	onSegment: (text: string) => Promise<void>;
+	onAudioChunk: (base64Pcm: string) => void;
+	onFlush: () => void;
+	onStop: () => void;
 };
 
-export function Recorder({ transcript, status, onSegment }: Props) {
+export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: Props) {
 	const [isRecording, setIsRecording] = useState(false);
-	const [interimText, setInterimText] = useState("");
 	const [error, setError] = useState<string | null>(null);
-	const handleRef = useRef<LiveTranscriptionHandle | null>(null);
-	const supported = useMemo(() => isSpeechRecognitionSupported(), []);
+	const handleRef = useRef<SarvamCaptureHandle | null>(null);
 
-	const start = useCallback(() => {
+	const start = useCallback(async () => {
 		setError(null);
-		if (!supported) {
-			setError("இந்த உலாவியில் குரல் அங்கீகாரம் ஆதரிக்கப்படவில்லை. Android-இல் Chrome பயன்படுத்தவும்.");
-			return;
-		}
 		try {
-			const handle = startLiveTranscription({
-				onFinalSegment: (text) => {
-					void onSegment(text);
-				},
-				onInterimUpdate: setInterimText,
-				onError: (message) => {
-					console.error("speech recognition error:", message);
-					if (message === "not-allowed") {
-						setError("மைக்ரோஃபோன் அனுமதி மறுக்கப்பட்டது.");
-						setIsRecording(false);
-					}
-					// other errors (e.g. transient network hiccups) are recovered
-					// from automatically by the auto-restart in liveTranscription.
+			const handle = await startSarvamCapture({
+				onAudioChunk,
+				onFlush,
+				onError: (err) => {
+					console.error("audio capture error:", err);
+					setError("பதிவு செய்வதில் சிக்கல் ஏற்பட்டது.");
+					setIsRecording(false);
 				},
 			});
 			handleRef.current = handle;
 			setIsRecording(true);
 		} catch (err) {
 			console.error(err);
-			setError("மைக்ரோஃபோனைத் தொடங்க முடியவில்லை.");
+			setError("மைக்ரோஃபோன் அணுக முடியவில்லை.");
 		}
-	}, [onSegment, supported]);
+	}, [onAudioChunk, onFlush]);
 
 	const stop = useCallback(() => {
 		handleRef.current?.stop();
 		handleRef.current = null;
 		setIsRecording(false);
-		setInterimText("");
-	}, []);
+		onStop();
+	}, [onStop]);
 
 	return (
 		<div className="pane recorder-pane">
@@ -77,9 +63,7 @@ export function Recorder({ transcript, status, onSegment }: Props) {
 				<h3>பேச்சு உரை</h3>
 				<p>
 					{transcript}
-					{transcript && interimText ? " " : ""}
-					<span className="interim-text">{interimText}</span>
-					{!transcript && !interimText && <span className="placeholder-text">பேசத் தொடங்குங்கள்…</span>}
+					{!transcript && <span className="placeholder-text">பேசத் தொடங்குங்கள்…</span>}
 					{isRecording && <span className="live-cursor" />}
 				</p>
 			</div>

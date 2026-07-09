@@ -45,8 +45,14 @@ function RecordingView() {
 				<Recorder
 					transcript={state?.transcript ?? ""}
 					status={state?.status ?? "idle"}
-					onSegment={async (text) => {
-						await agent.stub.addTranscriptSegment(text);
+					onAudioChunk={(base64Pcm) => {
+						agent.stub.pushAudio(base64Pcm);
+					}}
+					onFlush={() => {
+						agent.stub.flush();
+					}}
+					onStop={() => {
+						agent.stub.stopStreaming();
 					}}
 				/>
 				<LiveList

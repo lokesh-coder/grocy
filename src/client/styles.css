@@ -283,11 +283,6 @@ input {
 	font-size: 1.02rem;
 }
 
-.interim-text {
-	opacity: 0.5;
-	font-style: italic;
-}
-
 .placeholder-text {
 	opacity: 0.4;
 }
