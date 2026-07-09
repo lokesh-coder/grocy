@@ -80,6 +80,29 @@ body {
 	opacity: 0.7;
 }
 
+.typing-dot {
+	display: inline-block;
+	width: 0.5em;
+	height: 0.5em;
+	margin-left: 0.3em;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.6;
+	animation: typing-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes typing-pulse {
+	0%,
+	100% {
+		opacity: 0.25;
+		transform: scale(0.8);
+	}
+	50% {
+		opacity: 0.9;
+		transform: scale(1.1);
+	}
+}
+
 .list-pane {
 	display: flex;
 	flex-direction: column;

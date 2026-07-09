@@ -53,20 +53,31 @@ export function Recorder({ transcript, status, onChunk }: Props) {
 				{isRecording ? "⏹" : "🎙"}
 			</button>
 
-			<p className="status-line">
-				{isRecording
-					? status === "processing"
-						? "கேட்கிறேன்… (எழுதிக்கொண்டிருக்கிறேன்)"
-						: "கேட்கிறேன்…"
-					: "தொடங்க மைக்கை அழுத்தவும்"}
-			</p>
+			<p className="status-line">{statusText(isRecording, status)}</p>
 
 			{error && <p className="error-line">{error}</p>}
 
 			<div className="transcript-box">
 				<h3>பேச்சு உரை</h3>
-				<p>{transcript || "…"}</p>
+				<p>
+					{transcript || "…"}
+					{isRecording && (status === "transcribing" || status === "extracting") && (
+						<span className="typing-dot" />
+					)}
+				</p>
 			</div>
 		</div>
 	);
+}
+
+function statusText(isRecording: boolean, status: SessionState["status"]): string {
+	if (!isRecording) return "தொடங்க மைக்கை அழுத்தவும்";
+	switch (status) {
+		case "transcribing":
+			return "எழுதுகிறேன்…";
+		case "extracting":
+			return "பட்டியலை புதுப்பிக்கிறேன்…";
+		default:
+			return "கேட்கிறேன்…";
+	}
 }

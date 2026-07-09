@@ -3,9 +3,9 @@
 // repeatedly to produce a transcript that feels like it's arriving in real time.
 
 const SILENCE_RMS_THRESHOLD = 0.02;
-const SILENCE_HOLD_MS = 900;
-const MAX_CHUNK_MS = 8000;
-const MIN_CHUNK_MS = 1200;
+const SILENCE_HOLD_MS = 500;
+const MAX_CHUNK_MS = 4000;
+const MIN_CHUNK_MS = 600;
 const POLL_INTERVAL_MS = 100;
 
 export type ChunkerHandle = {

@@ -18,10 +18,16 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 	@callable()
 	async addChunk(audioBase64: string) {
 		if (this.state.finalizedSlug) return;
-		this.setState({ ...this.state, status: "processing" });
+		this.setState({ ...this.state, status: "transcribing" });
 
 		const spoken = await transcribeChunk(this.env.AI, audioBase64);
 		const transcript = spoken ? `${this.state.transcript} ${spoken}`.trim() : this.state.transcript;
+
+		// Broadcast the transcript as soon as it's ready, before waiting on the
+		// (slower) extraction call, so the left pane feels live even though the
+		// list on the right catches up a beat later.
+		this.setState({ ...this.state, transcript, status: "extracting" });
+
 		const items = await extractItems(this.env.AI, transcript);
 
 		this.setState({ ...this.state, transcript, items, status: "recording" });

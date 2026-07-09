@@ -23,9 +23,18 @@ const ITEMS_SCHEMA = {
 const SYSTEM_PROMPT =
 	"You read a running Tamil speech transcript of a grocery list someone is dictating out loud, " +
 	"sometimes mixed with English words (brand names, loanwords). Extract the current, de-duplicated " +
-	"set of grocery items mentioned so far. If an item is mentioned more than once (e.g. the quantity " +
-	'was corrected), keep only its latest quantity. Keep item names in Tamil as spoken. Quantity is free ' +
-	'text such as "1 kg", "2 dozen", "அரை கிலோ" - if no quantity was said, use "1". ' +
+	"set of grocery items mentioned so far.\n\n" +
+	"The transcript is cumulative and may include corrections spoken later, such as \"தக்காளி இல்ல, " +
+	'ஒரு கிலோ போதும்" (never mind, one kg is enough), "வெங்காயத்த இரண்டு கிலோவா மாத்து" (change onion to ' +
+	'two kg), or simply repeating the item with a new quantity. When that happens, treat it as an update ' +
+	"to the SAME item, not a new one: keep a single entry for that item with its latest quantity. Only " +
+	"treat two mentions as separate items if they are clearly different products.\n\n" +
+	"Example - transcript so far: \"தக்காளி இரண்டு கிலோ. வெங்காயம் ஒரு கிலோ. தக்காளியை ஒரு கிலோவா மாத்து.\" " +
+	'(tomato 2kg. onion 1kg. change tomato to 1kg.) -> items: [{"name": "தக்காளி", "quantity": "1 கிலோ", ' +
+	'"category": "vegetables"}, {"name": "வெங்காயம்", "quantity": "1 கிலோ", "category": "vegetables"}] ' +
+	"- note tomato appears only once, with the corrected quantity.\n\n" +
+	'Keep item names in Tamil as spoken. Quantity is free text such as "1 kg", "2 dozen", "அரை கிலோ" - ' +
+	'if no quantity was said, use "1". ' +
 	`Assign each item to exactly one category id from this fixed list: ${CATEGORY_IDS.join(", ")}. ` +
 	"Respond with JSON only, matching the given schema.";
 
