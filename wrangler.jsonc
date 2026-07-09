@@ -12,8 +12,11 @@
 		"not_found_handling": "single-page-application",
 		"run_worker_first": ["/api/*", "/agents/*"]
 	},
-	"ai": {
-		"binding": "AI"
+	"vars": {
+		// A plain (non-secret) config value so switching the extraction model
+		// later is a one-line edit here, not a code change. OpenRouter's own
+		// alias for whatever the current best Gemini Pro model is.
+		"EXTRACTION_MODEL": "~google/gemini-pro-latest"
 	},
 	"d1_databases": [
 		{

@@ -86,11 +86,11 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 
 		let items;
 		try {
-			items = (await extractItems(this.env.AI, this.state.transcript)).filter(
+			items = (await extractItems(this.env, this.state.transcript)).filter(
 				(item) => !this.state.deletedItemKeys.includes(itemKey(item)),
 			);
 		} catch (error) {
-			// A transient Llama failure shouldn't blank out a list that was
+			// A transient extraction failure shouldn't blank out a list that was
 			// already showing correctly - just leave it as-is. The next
 			// segment re-extracts from the full transcript anyway, so this
 			// self-heals rather than needing an explicit retry here.
