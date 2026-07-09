@@ -19,8 +19,11 @@ export type ChunkerHandle = {
 };
 
 export type ChunkerOptions = {
-	// Called once per chunk. The recorder waits for this to resolve before
-	// capturing the next chunk, so chunks are always processed in order.
+	// Called once per chunk, fire-and-forget - the recorder does NOT wait for
+	// this to resolve before capturing the next chunk. Recording must stay
+	// continuous: pausing to wait on a network round-trip would drop whatever
+	// the user says in the meantime and slice words across the gap. The
+	// receiving end is responsible for processing chunks in order.
 	onChunk: (audioBase64: string) => Promise<void> | void;
 	onError?: (error: unknown) => void;
 	onLevel?: (rms: number) => void;
@@ -123,10 +126,13 @@ export async function startChunkedRecording(options: ChunkerOptions): Promise<Ch
 		try {
 			while (!stopped) {
 				const blob = await recordOneChunk();
-				if (stopped) break;
 				if (blob && blob.size > 0) {
-					const audioBase64 = await blobToBase64(blob);
-					await options.onChunk(audioBase64);
+					// Process in the background - starting the next recorder must
+					// not wait on this. Recording stays gapless; the server queues
+					// and processes chunks in the order they arrive.
+					blobToBase64(blob)
+						.then((audioBase64) => options.onChunk(audioBase64))
+						.catch((error) => options.onError?.(error));
 				}
 			}
 		} catch (error) {

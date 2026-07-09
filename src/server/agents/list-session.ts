@@ -12,11 +12,23 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		finalizedSlug: null,
 	};
 
-	// Chunks are sent one at a time by the client, which awaits each call before
-	// recording the next segment - so this only ever runs for one chunk at a time
-	// per session and there's no need for extra queueing here.
+	// The client records continuously and fires a chunk off in the background
+	// as soon as it's cut, without waiting for it to finish processing (waiting
+	// would leave the mic dead for the duration of the AI calls and drop
+	// whatever was said in the meantime). That means chunks can arrive here
+	// faster than they're processed, so we chain them onto this queue to
+	// guarantee they're transcribed and appended in the order they were
+	// spoken - never interleaved or racing each other for `this.state`.
+	private chunkQueue: Promise<void> = Promise.resolve();
+
 	@callable()
-	async addChunk(audioBase64: string) {
+	addChunk(audioBase64: string) {
+		this.chunkQueue = this.chunkQueue.then(() => this.processChunk(audioBase64)).catch((error) => {
+			console.error("Failed to process audio chunk", error);
+		});
+	}
+
+	private async processChunk(audioBase64: string) {
 		if (this.state.finalizedSlug) return;
 		this.setState({ ...this.state, status: "transcribing" });
 
@@ -35,6 +47,10 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 
 	@callable()
 	async finalize(): Promise<{ slug: string }> {
+		// Make sure any chunks still in flight are accounted for before
+		// finalizing, so the shared list reflects everything actually said.
+		await this.chunkQueue;
+
 		if (this.state.finalizedSlug) {
 			return { slug: this.state.finalizedSlug };
 		}
