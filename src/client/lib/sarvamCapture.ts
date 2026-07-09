@@ -1,15 +1,16 @@
 // Captures microphone audio continuously (never stopped/restarted while
 // recording - that dead-air pattern is what caused garbled transcription
 // with the old Whisper-based approach) and streams it to the server as raw
-// 16-bit PCM via an AudioWorklet. A separate, lightweight silence detector
-// decides when to ask the server for an incremental transcript checkpoint
-// (`onFlush`), without ever interrupting the audio stream itself.
+// 16-bit PCM via an AudioWorklet.
+//
+// Segmenting live speech into phrases is handled entirely server-side by
+// Sarvam's own voice-activity detection (see list-session.ts) - it pushes a
+// transcript on its own once it detects a pause, which is both faster and
+// more accurate than guessing from a client-side volume threshold. `onFlush`
+// here is just a safety net fired once on stop, to catch any trailing speech
+// Sarvam's VAD hasn't flushed yet.
 
 const SAMPLE_RATE = 16000;
-const SILENCE_RMS_THRESHOLD = 0.02;
-const SILENCE_HOLD_MS = 700;
-const MAX_FLUSH_INTERVAL_MS = 6000;
-const POLL_INTERVAL_MS = 100;
 
 export type SarvamCaptureHandle = {
 	stop: () => void;
@@ -37,57 +38,14 @@ export async function startSarvamCapture(options: SarvamCaptureOptions): Promise
 		await audioContext.audioWorklet.addModule(workletUrl);
 
 		const source = audioContext.createMediaStreamSource(stream);
-
 		const workletNode = new AudioWorkletNode(audioContext, "pcm-capture-processor");
 		workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
 			options.onAudioChunk(bufferToBase64(event.data));
 		};
 		source.connect(workletNode);
 
-		// Separate analyser purely to decide *when* to request a checkpoint -
-		// capture above is never paused, so there's no dead air either way.
-		const analyser = audioContext.createAnalyser();
-		analyser.fftSize = 1024;
-		source.connect(analyser);
-		const levelData = new Uint8Array(analyser.fftSize);
-
-		let silenceSince: number | null = null;
-		let flushedForThisSilence = false;
-		let lastFlushAt = Date.now();
-		let stopped = false;
-
-		const pollTimer = setInterval(() => {
-			if (stopped) return;
-
-			analyser.getByteTimeDomainData(levelData);
-			let sumSquares = 0;
-			for (let i = 0; i < levelData.length; i++) {
-				const centered = (levelData[i] - 128) / 128;
-				sumSquares += centered * centered;
-			}
-			const rms = Math.sqrt(sumSquares / levelData.length);
-
-			if (rms < SILENCE_RMS_THRESHOLD) {
-				if (silenceSince === null) silenceSince = Date.now();
-			} else {
-				silenceSince = null;
-				flushedForThisSilence = false;
-			}
-
-			const silenceHeld = silenceSince !== null && Date.now() - silenceSince >= SILENCE_HOLD_MS;
-			const hitMaxInterval = Date.now() - lastFlushAt >= MAX_FLUSH_INTERVAL_MS;
-
-			if ((silenceHeld && !flushedForThisSilence) || hitMaxInterval) {
-				flushedForThisSilence = true;
-				lastFlushAt = Date.now();
-				options.onFlush();
-			}
-		}, POLL_INTERVAL_MS);
-
 		return {
 			stop: () => {
-				stopped = true;
-				clearInterval(pollTimer);
 				options.onFlush();
 				for (const track of stream.getTracks()) track.stop();
 				void audioContext.close();

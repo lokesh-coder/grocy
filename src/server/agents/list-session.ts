@@ -39,10 +39,15 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		this.sarvamConnecting = (async () => {
 			// Workers' outbound WebSocket pattern upgrades over a normal https://
 			// fetch() (the Upgrade header triggers it, not a wss:// scheme).
+			// vad_signals + high_vad_sensitivity let Sarvam's own (trained,
+			// server-side) voice-activity detection decide when a phrase has
+			// ended and push a transcript on its own - confirmed empirically
+			// this is what actually drives live results, not periodic flush.
 			const url =
 				"https://api.sarvam.ai/speech-to-text/ws" +
 				`?language-code=ta-IN&model=saaras:v3&mode=transcribe` +
-				`&sample_rate=${SARVAM_SAMPLE_RATE}&input_audio_codec=wav`;
+				`&sample_rate=${SARVAM_SAMPLE_RATE}&input_audio_codec=wav` +
+				`&vad_signals=true&high_vad_sensitivity=true`;
 
 			const response = await fetch(url, {
 				headers: {
