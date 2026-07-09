@@ -48,9 +48,6 @@ function RecordingView() {
 					onAudioChunk={(base64Pcm) => {
 						agent.stub.pushAudio(base64Pcm);
 					}}
-					onFlush={() => {
-						agent.stub.flush();
-					}}
 					onStop={() => {
 						agent.stub.stopStreaming();
 					}}

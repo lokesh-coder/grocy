@@ -21,10 +21,12 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 
 	// Persistent outbound WebSocket to Sarvam's streaming STT for the current
 	// recording session. Audio streams to it continuously (no dead air);
-	// `flush()` asks it to return an incremental transcript checkpoint for
-	// whatever's arrived since the last flush, without ending the session.
+	// Sarvam's own server-side VAD segments it and pushes transcripts back on
+	// its own - see closeSarvamConnection() for the one place we still send
+	// an explicit flush (on stop/finalize, to catch trailing speech).
 	private sarvamSocket: WebSocket | null = null;
 	private sarvamConnecting: Promise<void> | null = null;
+	private pendingFlushResolvers: Array<() => void> = [];
 
 	// Same extraction-coalescing pattern as before: appending transcript text
 	// is instant, but only one Llama extraction call runs at a time, with at
@@ -90,9 +92,14 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 
 		if (message.type === "error") {
 			console.error("Sarvam transcription error:", message.data?.message);
+			this.resolvePendingFlushes();
 			return;
 		}
 		if (message.type !== "data") return;
+
+		// Unblocks anyone waiting in closeSarvamConnection() for a flush to be
+		// answered before it's safe to close the connection.
+		this.resolvePendingFlushes();
 
 		const text = String(message.data.transcript ?? "").trim();
 		if (!text || this.state.finalizedSlug) return;
@@ -100,6 +107,10 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		const transcript = `${this.state.transcript} ${text}`.trim();
 		this.setState({ ...this.state, transcript });
 		this.triggerExtraction();
+	}
+
+	private resolvePendingFlushes() {
+		for (const resolve of this.pendingFlushResolvers.splice(0)) resolve();
 	}
 
 	@callable()
@@ -121,15 +132,27 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		);
 	}
 
-	@callable()
-	flush() {
-		this.sarvamSocket?.send(JSON.stringify({ type: "flush" }));
+	// Asks Sarvam for anything still buffered and waits for it to answer
+	// (with a timeout fallback) before closing. Closing immediately after
+	// sending flush - without waiting - risked silently dropping the last
+	// phrase spoken right before the user hit stop, if the response hadn't
+	// arrived yet.
+	private async closeSarvamConnection(): Promise<void> {
+		if (!this.sarvamSocket) return;
+
+		const flushAnswered = new Promise<void>((resolve) => {
+			this.pendingFlushResolvers.push(resolve);
+		});
+		this.sarvamSocket.send(JSON.stringify({ type: "flush" }));
+		await Promise.race([flushAnswered, new Promise<void>((resolve) => setTimeout(resolve, 2500))]);
+
+		this.sarvamSocket?.close();
+		this.sarvamSocket = null;
 	}
 
 	@callable()
-	stopStreaming() {
-		this.sarvamSocket?.close();
-		this.sarvamSocket = null;
+	async stopStreaming() {
+		await this.closeSarvamConnection();
 	}
 
 	private triggerExtraction() {
@@ -150,16 +173,40 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		if (this.state.finalizedSlug) return;
 		this.setState({ ...this.state, status: "extracting" });
 
-		const items = await extractItems(this.env.AI, this.state.transcript);
+		let items;
+		try {
+			items = await extractItems(this.env.AI, this.state.transcript);
+		} catch (error) {
+			// A transient Llama failure shouldn't blank out a list that was
+			// already showing correctly - just leave it as-is. The next VAD
+			// segment re-extracts from the full transcript anyway, so this
+			// self-heals rather than needing an explicit retry here.
+			console.error("Extraction failed, keeping previous items", error);
+			if (this.state.finalizedSlug) return;
+			this.setState({ ...this.state, status: "recording" });
+			return;
+		}
 
 		if (this.state.finalizedSlug) return;
+
+		// A non-empty transcript extracting to zero items, after we already
+		// had some, is far more likely a parsing/response hiccup than the
+		// speaker actually retracting everything - don't wipe a good list on
+		// what's probably a fluke.
+		if (items.length === 0 && this.state.items.length > 0) {
+			console.error("Extraction returned no items despite an existing list - keeping previous items");
+			this.setState({ ...this.state, status: "recording" });
+			return;
+		}
+
 		this.setState({ ...this.state, items, status: "recording" });
 	}
 
 	@callable()
 	async finalize(): Promise<{ slug: string }> {
-		this.sarvamSocket?.close();
-		this.sarvamSocket = null;
+		// Covers finalize being called without an explicit stop first (e.g.
+		// clicking "Done" while still recording).
+		await this.closeSarvamConnection();
 
 		// Drain any extraction still in flight, including a coalesced catch-up
 		// pass that might get scheduled right after it, so the shared list

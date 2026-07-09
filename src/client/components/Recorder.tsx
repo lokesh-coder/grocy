@@ -6,11 +6,10 @@ type Props = {
 	transcript: string;
 	status: SessionState["status"];
 	onAudioChunk: (base64Pcm: string) => void;
-	onFlush: () => void;
 	onStop: () => void;
 };
 
-export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: Props) {
+export function Recorder({ transcript, status, onAudioChunk, onStop }: Props) {
 	const [isRecording, setIsRecording] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const handleRef = useRef<SarvamCaptureHandle | null>(null);
@@ -20,7 +19,6 @@ export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: 
 		try {
 			const handle = await startSarvamCapture({
 				onAudioChunk,
-				onFlush,
 				onError: (err) => {
 					console.error("audio capture error:", err);
 					setError("பதிவு செய்வதில் சிக்கல் ஏற்பட்டது.");
@@ -33,7 +31,7 @@ export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: 
 			console.error(err);
 			setError("மைக்ரோஃபோன் அணுக முடியவில்லை.");
 		}
-	}, [onAudioChunk, onFlush]);
+	}, [onAudioChunk]);
 
 	const stop = useCallback(() => {
 		handleRef.current?.stop();
@@ -41,6 +39,12 @@ export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: 
 		setIsRecording(false);
 		onStop();
 	}, [onStop]);
+
+	// Stays visible even after the mic visually stops, since the server may
+	// still be flushing/extracting the last thing you said - reverting to
+	// "press mic to start" immediately made that work look like it never
+	// happened until something else (like clicking Done) nudged it along.
+	const showBusy = isRecording || status === "extracting";
 
 	return (
 		<div className="pane recorder-pane">
@@ -52,8 +56,8 @@ export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: 
 				{isRecording ? "⏹" : "🎙"}
 			</button>
 
-			<p className={`status-line ${isRecording ? "is-live" : ""}`}>
-				{isRecording && <span className={`status-dot ${status === "extracting" ? "busy" : ""}`} />}
+			<p className={`status-line ${showBusy ? "is-live" : ""}`}>
+				{showBusy && <span className={`status-dot ${status === "extracting" ? "busy" : ""}`} />}
 				{statusText(isRecording, status)}
 			</p>
 
@@ -72,7 +76,7 @@ export function Recorder({ transcript, status, onAudioChunk, onFlush, onStop }: 
 }
 
 function statusText(isRecording: boolean, status: SessionState["status"]): string {
-	if (!isRecording) return "தொடங்க மைக்கை அழுத்தவும்";
 	if (status === "extracting") return "பட்டியலை புதுப்பிக்கிறேன்…";
+	if (!isRecording) return "தொடங்க மைக்கை அழுத்தவும்";
 	return "கேட்கிறேன்…";
 }

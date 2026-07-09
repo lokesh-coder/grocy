@@ -6,9 +6,9 @@
 // Segmenting live speech into phrases is handled entirely server-side by
 // Sarvam's own voice-activity detection (see list-session.ts) - it pushes a
 // transcript on its own once it detects a pause, which is both faster and
-// more accurate than guessing from a client-side volume threshold. `onFlush`
-// here is just a safety net fired once on stop, to catch any trailing speech
-// Sarvam's VAD hasn't flushed yet.
+// more accurate than guessing from a client-side volume threshold. Flushing
+// any trailing speech on stop is also handled server-side (stopStreaming),
+// so this module only needs to worry about capturing audio.
 
 const SAMPLE_RATE = 16000;
 
@@ -18,7 +18,6 @@ export type SarvamCaptureHandle = {
 
 export type SarvamCaptureOptions = {
 	onAudioChunk: (base64Pcm: string) => void;
-	onFlush: () => void;
 	onError?: (error: unknown) => void;
 };
 
@@ -46,7 +45,6 @@ export async function startSarvamCapture(options: SarvamCaptureOptions): Promise
 
 		return {
 			stop: () => {
-				options.onFlush();
 				for (const track of stream.getTracks()) track.stop();
 				void audioContext.close();
 			},
