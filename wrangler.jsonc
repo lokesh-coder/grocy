@@ -17,11 +17,9 @@
 	},
 	"d1_databases": [
 		{
-			// Run `wrangler d1 create grocy-db` (after `wrangler login`) and replace
-			// this placeholder with the real database_id it prints out.
 			"binding": "DB",
 			"database_name": "grocy-db",
-			"database_id": "00000000-0000-0000-0000-000000000000"
+			"database_id": "229f1f70-9515-4c23-a944-ace3e283da56"
 		}
 	],
 	"durable_objects": {
