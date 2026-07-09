@@ -15,6 +15,11 @@ function getOrCreateSessionId(): string {
 	return created;
 }
 
+function startNewList() {
+	sessionStorage.removeItem(SESSION_STORAGE_KEY);
+	window.location.reload();
+}
+
 function RecordingView() {
 	const [sessionId] = useState(getOrCreateSessionId);
 
@@ -24,22 +29,33 @@ function RecordingView() {
 	});
 
 	const state = agent.state;
+	const hasContent = (state?.transcript.length ?? 0) > 0 || (state?.items.length ?? 0) > 0;
 
 	return (
-		<div className="app-layout">
-			<Recorder
-				transcript={state?.transcript ?? ""}
-				status={state?.status ?? "idle"}
-				onChunk={async (audioBase64) => {
-					await agent.stub.addChunk(audioBase64);
-				}}
-			/>
-			<LiveList
-				items={state?.items ?? []}
-				onFinalize={async () => {
-					return await agent.stub.finalize();
-				}}
-			/>
+		<div className="app-shell">
+			<header className="top-bar">
+				<span className="app-title">மளிகை பட்டியல்</span>
+				{hasContent && (
+					<button className="new-list-button" onClick={startNewList}>
+						புதிய பட்டியல்
+					</button>
+				)}
+			</header>
+			<div className="app-layout">
+				<Recorder
+					transcript={state?.transcript ?? ""}
+					status={state?.status ?? "idle"}
+					onChunk={async (audioBase64) => {
+						await agent.stub.addChunk(audioBase64);
+					}}
+				/>
+				<LiveList
+					items={state?.items ?? []}
+					onFinalize={async () => {
+						return await agent.stub.finalize();
+					}}
+				/>
+			</div>
 		</div>
 	);
 }
