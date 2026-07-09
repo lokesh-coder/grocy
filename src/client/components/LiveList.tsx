@@ -5,9 +5,10 @@ import type { ListItem } from "../../shared/types";
 type Props = {
 	items: ListItem[];
 	onFinalize: () => Promise<{ slug: string }>;
+	onDelete: (itemId: string) => void;
 };
 
-export function LiveList({ items, onFinalize }: Props) {
+export function LiveList({ items, onFinalize, onDelete }: Props) {
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [finalizing, setFinalizing] = useState(false);
 	const [copied, setCopied] = useState(false);
@@ -58,8 +59,17 @@ export function LiveList({ items, onFinalize }: Props) {
 					<ul>
 						{group.items.map((item) => (
 							<li key={item.id}>
-								<span className="item-name">{item.name}</span>
-								<span className="item-qty">{item.quantity}</span>
+								<span className="item-info">
+									<span className="item-name">{item.name}</span>
+									<span className="item-qty">{item.quantity}</span>
+								</span>
+								<button
+									className="delete-item-button"
+									aria-label={`${item.name} நீக்கு`}
+									onClick={() => onDelete(item.id)}
+								>
+									✕
+								</button>
 							</li>
 						))}
 					</ul>

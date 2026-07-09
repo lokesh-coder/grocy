@@ -387,8 +387,16 @@ input {
 	cursor: pointer;
 }
 
+.item-info {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
 .item-name {
 	transition: opacity var(--duration-base) var(--ease-standard);
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .item-qty {
@@ -396,6 +404,33 @@ input {
 	font-variant-numeric: tabular-nums;
 	margin-left: 0.5rem;
 	white-space: nowrap;
+}
+
+.delete-item-button {
+	flex-shrink: 0;
+	width: 1.6rem;
+	height: 1.6rem;
+	margin-left: 0.75rem;
+	border: none;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--color-text-muted);
+	font-size: 0.85rem;
+	line-height: 1;
+	cursor: pointer;
+	transition:
+		background var(--duration-fast) var(--ease-standard),
+		color var(--duration-fast) var(--ease-standard),
+		transform var(--duration-fast) var(--ease-bounce);
+}
+
+.delete-item-button:hover {
+	background: var(--color-danger-soft);
+	color: var(--color-danger);
+}
+
+.delete-item-button:active {
+	transform: scale(0.85);
 }
 
 .done-button {

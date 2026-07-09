@@ -57,6 +57,9 @@ function RecordingView() {
 					onFinalize={async () => {
 						return await agent.stub.finalize();
 					}}
+					onDelete={(itemId) => {
+						agent.stub.deleteItem(itemId);
+					}}
 				/>
 			</div>
 		</div>

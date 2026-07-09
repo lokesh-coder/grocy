@@ -1,5 +1,5 @@
 import { Agent, callable } from "agents";
-import type { SessionState } from "../../shared/types";
+import type { ListItem, SessionState } from "../../shared/types";
 import { extractItems } from "../lib/extract";
 import { finalizeList } from "../lib/db";
 import { base64ToBytes, bytesToBase64, wrapPcmAsWav } from "../lib/wav";
@@ -11,12 +11,17 @@ type SarvamMessage =
 	| { type: "error"; data: { message?: string } }
 	| { type: "events"; data: unknown };
 
+function itemKey(item: Pick<ListItem, "name" | "category">): string {
+	return `${item.category}:${item.name.trim().toLowerCase()}`;
+}
+
 export class ListSessionAgent extends Agent<Env, SessionState> {
 	initialState: SessionState = {
 		transcript: "",
 		items: [],
 		status: "idle",
 		finalizedSlug: null,
+		deletedItemKeys: [],
 	};
 
 	// Persistent outbound WebSocket to Sarvam's streaming STT for the current
@@ -169,13 +174,30 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		});
 	}
 
+	@callable()
+	deleteItem(itemId: string) {
+		const item = this.state.items.find((i) => i.id === itemId);
+		if (!item) return;
+
+		this.setState({
+			...this.state,
+			items: this.state.items.filter((i) => i.id !== itemId),
+			// Remembered for the rest of the session so the next re-extraction
+			// (which re-derives the full list from the transcript) doesn't just
+			// bring the same mis-heard item straight back.
+			deletedItemKeys: [...this.state.deletedItemKeys, itemKey(item)],
+		});
+	}
+
 	private async runExtraction() {
 		if (this.state.finalizedSlug) return;
 		this.setState({ ...this.state, status: "extracting" });
 
 		let items;
 		try {
-			items = await extractItems(this.env.AI, this.state.transcript);
+			items = (await extractItems(this.env.AI, this.state.transcript)).filter(
+				(item) => !this.state.deletedItemKeys.includes(itemKey(item)),
+			);
 		} catch (error) {
 			// A transient Llama failure shouldn't blank out a list that was
 			// already showing correctly - just leave it as-is. The next VAD
