@@ -20,7 +20,7 @@
 		"strict": true,
 		"skipLibCheck": true,
 
-		"types": ["vite/client"]
+		"types": ["vite/client", "dom-speech-recognition"]
 	},
 	"include": ["src/client", "src/shared"]
 }

@@ -10,7 +10,7 @@ export type ListItem = {
 export type SessionState = {
 	transcript: string;
 	items: ListItem[];
-	status: "idle" | "recording" | "transcribing" | "extracting" | "done";
+	status: "idle" | "recording" | "extracting" | "done";
 	finalizedSlug: string | null;
 };
 

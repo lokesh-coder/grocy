@@ -1,6 +1,5 @@
 import { Agent, callable } from "agents";
 import type { SessionState } from "../../shared/types";
-import { transcribeChunk } from "../lib/transcribe";
 import { extractItems } from "../lib/extract";
 import { finalizeList } from "../lib/db";
 
@@ -12,32 +11,25 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		finalizedSlug: null,
 	};
 
-	// The client records continuously and fires a chunk off in the background
-	// as soon as it's cut, without waiting for it to finish processing (waiting
-	// would leave the mic dead for the duration of the AI calls and drop
-	// whatever was said in the meantime). That means chunks can arrive here
-	// faster than they're processed, so we chain them onto this queue to
-	// guarantee they're transcribed and appended in the order they were
-	// spoken - never interleaved or racing each other for `this.state`.
-	private chunkQueue: Promise<void> = Promise.resolve();
+	// Transcription now happens in the browser (Web Speech API), so segments
+	// arrive here as already-recognized text, not audio. They can still arrive
+	// faster than the extraction call (Llama) processes them during continuous
+	// speech, so we chain them onto this queue to guarantee they're appended
+	// and re-extracted in the order they were spoken - never interleaved or
+	// racing each other for `this.state`.
+	private segmentQueue: Promise<void> = Promise.resolve();
 
 	@callable()
-	addChunk(audioBase64: string) {
-		this.chunkQueue = this.chunkQueue.then(() => this.processChunk(audioBase64)).catch((error) => {
-			console.error("Failed to process audio chunk", error);
+	addTranscriptSegment(text: string) {
+		this.segmentQueue = this.segmentQueue.then(() => this.processSegment(text)).catch((error) => {
+			console.error("Failed to process transcript segment", error);
 		});
 	}
 
-	private async processChunk(audioBase64: string) {
-		if (this.state.finalizedSlug) return;
-		this.setState({ ...this.state, status: "transcribing" });
+	private async processSegment(text: string) {
+		if (this.state.finalizedSlug || !text.trim()) return;
 
-		const spoken = await transcribeChunk(this.env.AI, audioBase64);
-		const transcript = spoken ? `${this.state.transcript} ${spoken}`.trim() : this.state.transcript;
-
-		// Broadcast the transcript as soon as it's ready, before waiting on the
-		// (slower) extraction call, so the left pane feels live even though the
-		// list on the right catches up a beat later.
+		const transcript = `${this.state.transcript} ${text}`.trim();
 		this.setState({ ...this.state, transcript, status: "extracting" });
 
 		const items = await extractItems(this.env.AI, transcript);
@@ -47,9 +39,9 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 
 	@callable()
 	async finalize(): Promise<{ slug: string }> {
-		// Make sure any chunks still in flight are accounted for before
+		// Make sure any segments still in flight are accounted for before
 		// finalizing, so the shared list reflects everything actually said.
-		await this.chunkQueue;
+		await this.segmentQueue;
 
 		if (this.state.finalizedSlug) {
 			return { slug: this.state.finalizedSlug };

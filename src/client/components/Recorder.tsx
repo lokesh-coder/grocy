@@ -1,55 +1,66 @@
-import { useCallback, useRef, useState } from "react";
-import { startChunkedRecording, type ChunkerHandle } from "../lib/chunker";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+	isSpeechRecognitionSupported,
+	startLiveTranscription,
+	type LiveTranscriptionHandle,
+} from "../lib/liveTranscription";
 import type { SessionState } from "../../shared/types";
 
 type Props = {
 	transcript: string;
 	status: SessionState["status"];
-	onChunk: (audioBase64: string) => Promise<void>;
+	onSegment: (text: string) => Promise<void>;
 };
 
-export function Recorder({ transcript, status, onChunk }: Props) {
+export function Recorder({ transcript, status, onSegment }: Props) {
 	const [isRecording, setIsRecording] = useState(false);
-	const [level, setLevel] = useState(0);
+	const [interimText, setInterimText] = useState("");
 	const [error, setError] = useState<string | null>(null);
-	const handleRef = useRef<ChunkerHandle | null>(null);
+	const handleRef = useRef<LiveTranscriptionHandle | null>(null);
+	const supported = useMemo(() => isSpeechRecognitionSupported(), []);
 
-	const start = useCallback(async () => {
+	const start = useCallback(() => {
 		setError(null);
+		if (!supported) {
+			setError("இந்த உலாவியில் குரல் அங்கீகாரம் ஆதரிக்கப்படவில்லை. Android-இல் Chrome பயன்படுத்தவும்.");
+			return;
+		}
 		try {
-			const handle = await startChunkedRecording({
-				onChunk,
-				onLevel: setLevel,
-				onError: (err) => {
-					console.error(err);
-					setError("பதிவு செய்வதில் சிக்கல் ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.");
-					setIsRecording(false);
+			const handle = startLiveTranscription({
+				onFinalSegment: (text) => {
+					void onSegment(text);
+				},
+				onInterimUpdate: setInterimText,
+				onError: (message) => {
+					console.error("speech recognition error:", message);
+					if (message === "not-allowed") {
+						setError("மைக்ரோஃபோன் அனுமதி மறுக்கப்பட்டது.");
+						setIsRecording(false);
+					}
+					// other errors (e.g. transient network hiccups) are recovered
+					// from automatically by the auto-restart in liveTranscription.
 				},
 			});
 			handleRef.current = handle;
 			setIsRecording(true);
 		} catch (err) {
 			console.error(err);
-			setError("மைக்ரோஃபோன் அணுக முடியவில்லை.");
+			setError("மைக்ரோஃபோனைத் தொடங்க முடியவில்லை.");
 		}
-	}, [onChunk]);
+	}, [onSegment, supported]);
 
 	const stop = useCallback(() => {
 		handleRef.current?.stop();
 		handleRef.current = null;
 		setIsRecording(false);
-		setLevel(0);
+		setInterimText("");
 	}, []);
 
 	return (
 		<div className="pane recorder-pane">
 			<h2>பேசுங்கள்</h2>
 
-			<button
-				className={`mic-button ${isRecording ? "recording" : ""}`}
-				style={{ transform: isRecording ? `scale(${1 + Math.min(level, 1) * 0.3})` : undefined }}
-				onClick={isRecording ? stop : start}
-			>
+			<button className={`mic-button ${isRecording ? "recording" : ""}`} onClick={isRecording ? stop : start}>
 				{isRecording ? "⏹" : "🎙"}
 			</button>
 
@@ -60,10 +71,10 @@ export function Recorder({ transcript, status, onChunk }: Props) {
 			<div className="transcript-box">
 				<h3>பேச்சு உரை</h3>
 				<p>
-					{transcript || "…"}
-					{isRecording && (status === "transcribing" || status === "extracting") && (
-						<span className="typing-dot" />
-					)}
+					{transcript}
+					{transcript && interimText ? " " : ""}
+					<span className="interim-text">{interimText}</span>
+					{!transcript && !interimText && "…"}
 				</p>
 			</div>
 		</div>
@@ -72,12 +83,6 @@ export function Recorder({ transcript, status, onChunk }: Props) {
 
 function statusText(isRecording: boolean, status: SessionState["status"]): string {
 	if (!isRecording) return "தொடங்க மைக்கை அழுத்தவும்";
-	switch (status) {
-		case "transcribing":
-			return "எழுதுகிறேன்…";
-		case "extracting":
-			return "பட்டியலை புதுப்பிக்கிறேன்…";
-		default:
-			return "கேட்கிறேன்…";
-	}
+	if (status === "extracting") return "பட்டியலை புதுப்பிக்கிறேன்…";
+	return "கேட்கிறேன்…";
 }
