@@ -8,6 +8,15 @@ import type { ListItem } from "../../shared/types";
 // Google ships new versions without us needing to track exact version names.
 const DEFAULT_MODEL = "~google/gemini-pro-latest";
 
+// Gemini's default ("max") reasoning depth measured 4-15s of wildly variable
+// latency for even a single simple item - it decides how much to think per
+// request with no real ceiling. "low" cut reasoning tokens by ~75% (and cost
+// similarly) while still handling the hard cases correctly (full item
+// replacement, quantity-vs-price disambiguation) across repeated tests, and
+// tightened latency to a consistent ~5-7s instead of an unpredictable range -
+// the inconsistency itself was as much the complaint as the raw speed.
+const DEFAULT_REASONING_EFFORT = "low";
+
 const SYSTEM_PROMPT = `You read a running Tamil speech transcript of a grocery list someone is dictating out loud, sometimes mixed with English words (brand names, loanwords). People think out loud while doing this: they pause, restart, correct themselves, change their mind about an item entirely, or fix a quantity. Extract the current, de-duplicated set of grocery items the person currently wants - not just what they said, but what they mean after accounting for every correction and replacement.
 
 Rules:
@@ -48,6 +57,7 @@ const ITEMS_SCHEMA = {
 type ExtractEnv = {
 	OPENROUTER_API_KEY: string;
 	EXTRACTION_MODEL?: string;
+	EXTRACTION_REASONING_EFFORT?: string;
 };
 
 export async function extractItems(env: ExtractEnv, transcript: string): Promise<ListItem[]> {
@@ -62,6 +72,7 @@ export async function extractItems(env: ExtractEnv, transcript: string): Promise
 		body: JSON.stringify({
 			model: env.EXTRACTION_MODEL || DEFAULT_MODEL,
 			max_tokens: 3000,
+			reasoning: { effort: env.EXTRACTION_REASONING_EFFORT || DEFAULT_REASONING_EFFORT },
 			messages: [
 				{ role: "system", content: SYSTEM_PROMPT },
 				{ role: "user", content: transcript },

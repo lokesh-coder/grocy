@@ -13,10 +13,15 @@
 		"run_worker_first": ["/api/*", "/agents/*"]
 	},
 	"vars": {
-		// A plain (non-secret) config value so switching the extraction model
-		// later is a one-line edit here, not a code change. OpenRouter's own
-		// alias for whatever the current best Gemini Pro model is.
-		"EXTRACTION_MODEL": "~google/gemini-pro-latest"
+		// Plain (non-secret) config values so tuning the extraction model or
+		// its reasoning depth later is a one-line edit here, not a code
+		// change. "~google/gemini-pro-latest" is OpenRouter's own alias for
+		// whatever the current best Gemini Pro model is. "low" reasoning
+		// effort cut latency from a wildly inconsistent 4-15s down to a
+		// steady ~5-7s with no correctness loss on testing - "medium"/"high"
+		// trade that consistency back for deeper (slower) reasoning.
+		"EXTRACTION_MODEL": "~google/gemini-pro-latest",
+		"EXTRACTION_REASONING_EFFORT": "low"
 	},
 	"d1_databases": [
 		{
