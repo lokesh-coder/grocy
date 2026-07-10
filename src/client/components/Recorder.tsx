@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { Microphone, Stop } from "@phosphor-icons/react";
 import {
 	isSpeechRecognitionSupported,
 	startLiveTranscription,
@@ -61,31 +62,40 @@ export function Recorder({ transcript, status, onSegment }: Props) {
 	const showBusy = isRecording || status === "extracting";
 
 	return (
-		<div className="pane recorder-pane">
-			<h2>
-				<span className="heading-icon">🎙️</span>பேசுங்கள்
-			</h2>
-
-			<button className={`mic-button ${isRecording ? "recording" : ""}`} onClick={isRecording ? stop : start}>
-				{isRecording ? "⏹" : "🎙"}
+		<div className="record-bar">
+			<button
+				className={`mic-button ${isRecording ? "recording" : ""}`}
+				onClick={isRecording ? stop : start}
+				aria-label={isRecording ? "பதிவை நிறுத்து" : "பதிவைத் தொடங்கு"}
+			>
+				{isRecording ? <Stop weight="fill" size={22} /> : <Microphone weight="duotone" size={26} />}
 			</button>
 
-			<p className={`status-line ${showBusy ? "is-live" : ""}`}>
-				{showBusy && <span className={`status-dot ${status === "extracting" ? "busy" : ""}`} />}
-				{statusText(isRecording, status)}
-			</p>
-
-			{error && <p className="error-line">{error}</p>}
-
-			<div className="transcript-box">
-				<h3>பேச்சு உரை</h3>
-				<p>
-					{transcript}
-					{transcript && interimText ? " " : ""}
-					<span className="interim-text">{interimText}</span>
-					{!transcript && !interimText && <span className="placeholder-text">பேசத் தொடங்குங்கள்…</span>}
-					{isRecording && <span className="live-cursor" />}
+			<div className="record-info">
+				<p className={`status-line ${showBusy ? "is-live" : ""}`}>
+					{isRecording && (
+						<span className="wave" aria-hidden="true">
+							<span className="wave-bar" />
+							<span className="wave-bar" />
+							<span className="wave-bar" />
+							<span className="wave-bar" />
+						</span>
+					)}
+					{showBusy && <span className={`status-dot ${status === "extracting" ? "busy" : ""}`} />}
+					{statusText(isRecording, status)}
 				</p>
+
+				{error ? (
+					<p className="error-line">{error}</p>
+				) : (
+					<p className="live-transcript">
+						{!transcript && !interimText && <span className="placeholder-text">பேசத் தொடங்குங்கள்…</span>}
+						{tailText(transcript)}
+						{transcript && interimText ? " " : ""}
+						<span className="interim-text">{interimText}</span>
+						{isRecording && <span className="live-cursor" />}
+					</p>
+				)}
 			</div>
 		</div>
 	);
@@ -95,4 +105,17 @@ function statusText(isRecording: boolean, status: SessionState["status"]): strin
 	if (status === "extracting") return "பட்டியலை புதுப்பிக்கிறேன்…";
 	if (!isRecording) return "தொடங்க மைக்கை அழுத்தவும்";
 	return "கேட்கிறேன்…";
+}
+
+// This is a compact "what you just said" line, not a transcript archive - the
+// grocery list below is the real content. A long session's transcript can run
+// to thousands of characters, and CSS line-clamp truncation cuts off the END
+// (hiding the newest words, keeping stale ones), which is backwards for a
+// live caption. Trimming to the tail in JS keeps the most recent speech
+// visible no matter how long the session runs.
+const MAX_TRANSCRIPT_TAIL = 140;
+
+function tailText(text: string): string {
+	if (text.length <= MAX_TRANSCRIPT_TAIL) return text;
+	return `…${text.slice(-MAX_TRANSCRIPT_TAIL)}`;
 }

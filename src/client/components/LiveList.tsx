@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { Check, CheckCircle, Confetti, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
 import { CATEGORIES } from "../../shared/categories";
+import { categoryIcon } from "../lib/categoryIcons";
 import type { ListItem } from "../../shared/types";
 
 type Props = {
@@ -46,55 +48,74 @@ export function LiveList({ items, onFinalize, onDelete }: Props) {
 	}
 
 	return (
-		<div className="pane list-pane">
-			<h2>
-				<span className="heading-icon">🛒</span>பட்டியல்
-			</h2>
-
+		<div className="list-pane">
 			{items.length === 0 && <p className="empty-hint">பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>}
 
-			{grouped.map((group) => (
-				<section key={group.category.id} className="category-group">
-					<h3>{group.category.ta}</h3>
-					<ul>
-						{group.items.map((item) => (
-							<li key={item.id}>
-								<span className="item-info">
-									<span className="item-name">{item.name}</span>
-									<span className="item-qty">{item.quantity}</span>
-								</span>
-								<button
-									className="delete-item-button"
-									aria-label={`${item.name} நீக்கு`}
-									onClick={() => onDelete(item.id)}
-								>
-									✕
-								</button>
-							</li>
-						))}
-					</ul>
-				</section>
-			))}
+			{grouped.map((group) => {
+				const Icon = categoryIcon(group.category.id);
+				return (
+					<section key={group.category.id} className="category-group">
+						<h3>
+							<Icon weight="duotone" size={16} />
+							{group.category.ta}
+						</h3>
+						<ul>
+							{group.items.map((item) => (
+								<li key={item.id}>
+									<span className="item-info">
+										<span className="item-name">{item.name}</span>
+										<span className="item-qty">{item.quantity}</span>
+									</span>
+									<button
+										className="delete-item-button"
+										aria-label={`${item.name} நீக்கு`}
+										onClick={() => onDelete(item.id)}
+									>
+										<X weight="bold" size={13} />
+									</button>
+								</li>
+							))}
+						</ul>
+					</section>
+				);
+			})}
 
 			{items.length > 0 && !shareUrl && (
 				<button className="done-button" disabled={finalizing} onClick={handleDone}>
-					{finalizing ? "முடிக்கிறேன்…" : "✓ முடிந்தது"}
+					{finalizing ? (
+						"முடிக்கிறேன்…"
+					) : (
+						<>
+							<Check weight="bold" size={15} /> முடிந்தது
+						</>
+					)}
 				</button>
 			)}
 
 			{shareUrl && (
 				<div className="share-box">
-					<p>🎉 பட்டியல் தயார்!</p>
+					<p>
+						<Confetti weight="duotone" size={16} /> பட்டியல் தயார்!
+					</p>
 					<a
 						className="whatsapp-link"
 						href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
 						target="_blank"
 						rel="noreferrer"
 					>
+						<WhatsappLogo weight="duotone" size={17} />
 						WhatsApp-இல் பகிரவும்
 					</a>
 					<button className="copy-button" onClick={handleShare}>
-						{copied ? "✓ நகலெடுக்கப்பட்டது!" : "🔗 இணைப்பை நகலெடு"}
+						{copied ? (
+							<>
+								<CheckCircle weight="fill" size={15} /> நகலெடுக்கப்பட்டது!
+							</>
+						) : (
+							<>
+								<LinkSimple weight="bold" size={15} /> இணைப்பை நகலெடு
+							</>
+						)}
 					</button>
 				</div>
 			)}

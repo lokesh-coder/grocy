@@ -37,12 +37,19 @@
 	box-sizing: border-box;
 }
 
+html,
+body {
+	height: 100%;
+	overscroll-behavior: none;
+}
+
 body {
 	margin: 0;
-	min-height: 100vh;
+	overflow: hidden;
 	background: var(--color-bg);
 	color: var(--color-text);
 	font-family: var(--font-sans);
+	font-size: 15px;
 	-webkit-font-smoothing: antialiased;
 }
 
@@ -58,42 +65,47 @@ input {
 	font-family: var(--font-sans);
 }
 
-/* ---------- App shell ---------- */
+/* ---------- App shell (fills viewport, never scrolls itself - only
+   .list-pane inside it scrolls, so mobile never gets a page-level scrollbar
+   unless the list genuinely overflows) ---------- */
 
 .app-shell {
+	height: 100dvh;
 	display: flex;
 	flex-direction: column;
-	min-height: 100vh;
+	overflow: hidden;
 }
 
 .top-bar {
-	position: sticky;
-	top: 0;
-	z-index: 10;
+	flex-shrink: 0;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 1rem 1.5rem;
+	padding: 0.7rem 0.85rem;
 	background: color-mix(in srgb, var(--color-bg) 80%, transparent);
-	backdrop-filter: blur(10px);
-	-webkit-backdrop-filter: blur(10px);
 	box-shadow: 0 1px 0 var(--color-border);
 }
 
 .app-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
 	font-weight: 700;
-	font-size: 1.15rem;
+	font-size: 1rem;
 	letter-spacing: -0.01em;
 }
 
 .new-list-button {
-	padding: 0.5rem 1.1rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.4rem 0.85rem;
 	border: 1.5px solid var(--color-accent);
 	border-radius: var(--radius-pill);
 	background: transparent;
 	color: var(--color-accent-strong);
 	font-weight: 600;
-	font-size: 0.9rem;
+	font-size: 0.8rem;
 	cursor: pointer;
 	transition:
 		transform var(--duration-fast) var(--ease-standard),
@@ -110,82 +122,59 @@ input {
 	transform: scale(0.95);
 }
 
-.app-layout {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 1.25rem;
+/* ---------- Main area: compact record bar on top (fixed height),
+   list-pane fills and scrolls the rest ---------- */
+
+.main-area {
 	flex: 1;
-	padding: 1.25rem;
-	max-width: 1200px;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+	max-width: 640px;
 	width: 100%;
 	margin: 0 auto;
+	padding: 0.6rem 0.85rem 0;
+	gap: 0.6rem;
 }
 
-@media (max-width: 720px) {
-	.app-layout {
-		grid-template-columns: 1fr;
-		padding: 1rem;
-		gap: 1rem;
-	}
-}
+/* ---------- Record bar ---------- */
 
-/* ---------- Shared pane chrome ---------- */
-
-.pane {
-	padding: 1.75rem 1.5rem;
-	border-radius: var(--radius-lg);
+.record-bar {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.6rem 0.75rem;
+	border-radius: var(--radius-md);
 	background: var(--color-surface-alt);
-	overflow-y: auto;
 	animation: fade-in var(--duration-base) var(--ease-standard) both;
 }
 
-.pane h2 {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	font-size: 1.1rem;
-	font-weight: 700;
-	letter-spacing: -0.01em;
-	margin-bottom: 1.25rem;
-}
-
-.heading-icon {
-	font-size: 1.1em;
-	line-height: 1;
-}
-
-/* ---------- Recorder pane ---------- */
-
-.recorder-pane {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	text-align: center;
-	gap: 0.85rem;
-}
-
 .mic-button {
-	width: 104px;
-	height: 104px;
+	flex-shrink: 0;
+	width: 46px;
+	height: 46px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	border-radius: 50%;
 	border: none;
-	font-size: 2.6rem;
-	line-height: 1;
 	cursor: pointer;
 	background: linear-gradient(160deg, var(--color-accent), var(--color-accent-strong));
 	color: white;
-	box-shadow: var(--shadow-md);
+	box-shadow: var(--shadow-sm);
 	transition:
 		transform var(--duration-fast) var(--ease-bounce),
 		box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .mic-button:hover {
-	transform: scale(1.04);
+	transform: scale(1.05);
 }
 
 .mic-button:active {
-	transform: scale(0.94);
+	transform: scale(0.92);
 }
 
 .mic-button.recording {
@@ -196,29 +185,37 @@ input {
 @keyframes mic-pulse {
 	0% {
 		box-shadow:
-			var(--shadow-md),
+			var(--shadow-sm),
 			0 0 0 0 light-dark(rgba(223, 85, 72, 0.4), rgba(240, 121, 108, 0.4));
 	}
 	70% {
 		box-shadow:
-			var(--shadow-md),
-			0 0 0 18px light-dark(rgba(223, 85, 72, 0), rgba(240, 121, 108, 0));
+			var(--shadow-sm),
+			0 0 0 10px light-dark(rgba(223, 85, 72, 0), rgba(240, 121, 108, 0));
 	}
 	100% {
 		box-shadow:
-			var(--shadow-md),
+			var(--shadow-sm),
 			0 0 0 0 light-dark(rgba(223, 85, 72, 0), rgba(240, 121, 108, 0));
 	}
+}
+
+.record-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
 }
 
 .status-line {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.45rem;
+	gap: 0.4rem;
 	color: var(--color-text-muted);
-	font-size: 0.92rem;
-	font-weight: 500;
-	min-height: 1.4em;
+	font-size: 0.78rem;
+	font-weight: 600;
+	min-height: 1.2em;
 	transition: color var(--duration-base) var(--ease-standard);
 }
 
@@ -227,8 +224,9 @@ input {
 }
 
 .status-dot {
-	width: 0.5em;
-	height: 0.5em;
+	width: 0.45em;
+	height: 0.45em;
+	flex-shrink: 0;
 	border-radius: 50%;
 	background: var(--color-danger);
 	animation: dot-breathe 1.4s ease-in-out infinite;
@@ -251,51 +249,84 @@ input {
 	}
 }
 
+/* Decorative waveform shown only while recording - Web Speech API doesn't
+   expose mic amplitude to the page, so this is a looping staggered-bar
+   animation rather than something reactive to actual voice volume. */
+.wave {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	height: 12px;
+	flex-shrink: 0;
+}
+
+.wave-bar {
+	width: 2.5px;
+	height: 100%;
+	border-radius: 2px;
+	background: var(--color-danger);
+	transform-origin: center;
+	animation: wave-bounce 0.9s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) {
+	animation-delay: 0s;
+}
+
+.wave-bar:nth-child(2) {
+	animation-delay: 0.15s;
+}
+
+.wave-bar:nth-child(3) {
+	animation-delay: 0.3s;
+}
+
+.wave-bar:nth-child(4) {
+	animation-delay: 0.45s;
+}
+
+@keyframes wave-bounce {
+	0%,
+	100% {
+		transform: scaleY(0.3);
+	}
+	50% {
+		transform: scaleY(1);
+	}
+}
+
 .error-line {
 	color: var(--color-danger);
-	font-size: 0.88rem;
+	font-size: 0.8rem;
+	margin: 0;
 	animation: fade-in var(--duration-base) var(--ease-standard) both;
 }
 
-.transcript-box {
-	width: 100%;
-	margin-top: 0.75rem;
-	padding: 1.1rem 1.2rem;
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-	box-shadow: var(--shadow-sm);
-	text-align: left;
-	transition: box-shadow var(--duration-base) var(--ease-standard);
-}
-
-.transcript-box h3 {
-	margin: 0 0 0.5rem;
-	font-size: 0.78rem;
-	font-weight: 700;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-	color: var(--color-text-muted);
-}
-
-.transcript-box p {
+.live-transcript {
 	margin: 0;
-	line-height: 1.6;
-	font-size: 1.02rem;
+	font-size: 0.82rem;
+	line-height: 1.4;
+	color: var(--color-text-muted);
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .interim-text {
-	opacity: 0.5;
+	opacity: 0.7;
 	font-style: italic;
+	color: var(--color-text);
 }
 
 .placeholder-text {
-	opacity: 0.4;
+	opacity: 0.6;
 }
 
 .live-cursor {
 	display: inline-block;
 	width: 2px;
-	height: 1.1em;
+	height: 1em;
 	margin-left: 2px;
 	vertical-align: text-bottom;
 	background: var(--color-accent);
@@ -312,17 +343,23 @@ input {
 	}
 }
 
-/* ---------- List pane ---------- */
+/* ---------- List pane: the dominant, scrollable area ---------- */
 
 .list-pane {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
 	display: flex;
 	flex-direction: column;
-	gap: 0.75rem;
+	gap: 0.5rem;
+	padding-bottom: 1rem;
 }
 
 .empty-hint {
 	color: var(--color-text-muted);
-	font-size: 0.95rem;
+	font-size: 0.85rem;
+	padding-top: 0.5rem;
 }
 
 .category-group {
@@ -330,28 +367,36 @@ input {
 }
 
 .category-group h3 {
-	margin-bottom: 0.5rem;
-	font-size: 0.78rem;
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin-bottom: 0.35rem;
+	font-size: 0.68rem;
 	font-weight: 700;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 	color: var(--color-text-muted);
 }
 
+.category-group h3 svg {
+	flex-shrink: 0;
+	color: var(--color-accent);
+}
+
 .category-group ul {
 	list-style: none;
-	margin: 0 0 1rem;
+	margin: 0 0 0.6rem;
 	padding: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 0.45rem;
+	gap: 0.3rem;
 }
 
 .category-group li {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 0.75rem 1rem;
+	padding: 0.5rem 0.65rem;
 	border-radius: var(--radius-sm);
 	background: var(--color-surface);
 	box-shadow: var(--shadow-sm);
@@ -387,7 +432,7 @@ input {
 .category-group li label {
 	display: flex;
 	align-items: center;
-	gap: 0.65rem;
+	gap: 0.55rem;
 	width: 100%;
 	cursor: pointer;
 }
@@ -396,16 +441,20 @@ input {
 	display: flex;
 	align-items: center;
 	min-width: 0;
+	flex: 1;
 }
 
 .item-name {
+	font-size: 0.88rem;
 	transition: opacity var(--duration-base) var(--ease-standard);
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .item-qty {
 	color: var(--color-text-muted);
+	font-size: 0.78rem;
 	font-variant-numeric: tabular-nums;
 	margin-left: 0.5rem;
 	white-space: nowrap;
@@ -413,15 +462,16 @@ input {
 
 .delete-item-button {
 	flex-shrink: 0;
-	width: 1.6rem;
-	height: 1.6rem;
-	margin-left: 0.75rem;
+	width: 1.5rem;
+	height: 1.5rem;
+	margin-left: 0.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	border: none;
 	border-radius: 50%;
 	background: transparent;
 	color: var(--color-text-muted);
-	font-size: 0.85rem;
-	line-height: 1;
 	cursor: pointer;
 	transition:
 		background var(--duration-fast) var(--ease-standard),
@@ -440,12 +490,15 @@ input {
 
 .done-button {
 	align-self: flex-start;
-	padding: 0.8rem 1.75rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.6rem 1.4rem;
 	border: none;
 	border-radius: var(--radius-pill);
 	background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
 	color: white;
-	font-size: 1rem;
+	font-size: 0.88rem;
 	font-weight: 700;
 	cursor: pointer;
 	box-shadow: var(--shadow-sm);
@@ -472,24 +525,31 @@ input {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	gap: 0.7rem;
-	padding: 1.25rem;
+	gap: 0.55rem;
+	padding: 0.9rem 1rem;
 	border-radius: var(--radius-md);
 	background: var(--color-accent-soft);
 	animation: fade-slide-in var(--duration-base) var(--ease-bounce) both;
 }
 
 .share-box p {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
 	margin: 0;
+	font-size: 0.88rem;
 	font-weight: 600;
 }
 
 .whatsapp-link {
-	display: inline-block;
-	padding: 0.65rem 1.4rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.55rem 1.2rem;
 	border-radius: var(--radius-pill);
 	background: #25d366;
 	color: white;
+	font-size: 0.88rem;
 	font-weight: 700;
 	text-decoration: none;
 	box-shadow: var(--shadow-sm);
@@ -508,11 +568,15 @@ input {
 }
 
 .copy-button {
-	padding: 0.55rem 1.2rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.45rem 1rem;
 	border: 1.5px solid var(--color-border);
 	border-radius: var(--radius-pill);
 	background: var(--color-surface);
 	color: var(--color-text);
+	font-size: 0.85rem;
 	font-weight: 600;
 	cursor: pointer;
 	transition:
@@ -528,40 +592,22 @@ input {
 	transform: scale(0.96);
 }
 
-/* ---------- Shared list page ---------- */
-
-.shared-page {
-	max-width: 640px;
-	margin: 0 auto;
-	padding: 2rem 1.5rem 4rem;
-	animation: fade-in var(--duration-base) var(--ease-standard) both;
-}
-
-.shared-page h1 {
-	font-size: 1.5rem;
-	font-weight: 800;
-	letter-spacing: -0.01em;
-	margin-bottom: 1.5rem;
-}
-
-.shared-page .category-group li label {
-	position: relative;
-}
+/* ---------- Shared list checkbox ---------- */
 
 .check-input {
 	position: absolute;
 	opacity: 0;
-	width: 1.4rem;
-	height: 1.4rem;
+	width: 1.3rem;
+	height: 1.3rem;
 	margin: 0;
 	cursor: pointer;
 }
 
 .check-box {
 	flex-shrink: 0;
-	width: 1.4rem;
-	height: 1.4rem;
-	border-radius: 7px;
+	width: 1.3rem;
+	height: 1.3rem;
+	border-radius: 6px;
 	border: 2px solid var(--color-border);
 	background: var(--color-surface);
 	position: relative;
@@ -575,8 +621,8 @@ input {
 	position: absolute;
 	inset: 0;
 	margin: auto;
-	width: 0.4rem;
-	height: 0.7rem;
+	width: 0.36rem;
+	height: 0.65rem;
 	border-right: 2.5px solid white;
 	border-bottom: 2.5px solid white;
 	transform: translateY(-1px) rotate(45deg) scale(0);
@@ -596,6 +642,10 @@ input {
 .check-input:focus-visible + .check-box {
 	outline: 2px solid var(--color-accent);
 	outline-offset: 2px;
+}
+
+.category-group li label {
+	position: relative;
 }
 
 /* ---------- Shared keyframes ---------- */

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAgent } from "agents/react";
+import { ShoppingCart, Plus } from "@phosphor-icons/react";
 import { Recorder } from "./components/Recorder";
 import { LiveList } from "./components/LiveList";
 import { SharedListPage } from "./components/SharedListPage";
@@ -34,14 +35,18 @@ function RecordingView() {
 	return (
 		<div className="app-shell">
 			<header className="top-bar">
-				<span className="app-title">🛒 மளிகை பட்டியல்</span>
+				<span className="app-title">
+					<ShoppingCart weight="duotone" size={20} />
+					மளிகை பட்டியல்
+				</span>
 				{hasContent && (
 					<button className="new-list-button" onClick={startNewList}>
-						+ புதிய பட்டியல்
+						<Plus weight="bold" size={14} />
+						புதியது
 					</button>
 				)}
 			</header>
-			<div className="app-layout">
+			<main className="main-area">
 				<Recorder
 					transcript={state?.transcript ?? ""}
 					status={state?.status ?? "idle"}
@@ -58,7 +63,7 @@ function RecordingView() {
 						agent.stub.deleteItem(itemId);
 					}}
 				/>
-			</div>
+			</main>
 		</div>
 	);
 }

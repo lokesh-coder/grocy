@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ShoppingCart } from "@phosphor-icons/react";
 import { CATEGORIES } from "../../shared/categories";
+import { categoryIcon } from "../lib/categoryIcons";
 import type { SharedList } from "../../shared/types";
 
 type Props = {
@@ -49,45 +51,60 @@ export function SharedListPage({ slug }: Props) {
 
 	if (notFound) {
 		return (
-			<div className="shared-page">
-				<p>இந்தப் பட்டியல் கிடைக்கவில்லை.</p>
+			<div className="app-shell">
+				<p className="empty-hint">இந்தப் பட்டியல் கிடைக்கவில்லை.</p>
 			</div>
 		);
 	}
 
 	if (!list) {
 		return (
-			<div className="shared-page">
-				<p>ஏற்றுகிறது…</p>
+			<div className="app-shell">
+				<p className="empty-hint">ஏற்றுகிறது…</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="shared-page">
-			<h1>🛒 மளிகை பட்டியல்</h1>
-			{grouped.map((group) => (
-				<section key={group.category.id} className="category-group">
-					<h3>{group.category.ta}</h3>
-					<ul>
-						{group.items.map((item) => (
-							<li key={item.id} className={item.ticked ? "ticked" : ""}>
-								<label>
-									<input
-										type="checkbox"
-										className="check-input"
-										checked={item.ticked}
-										onChange={(event) => toggle(item.id, event.target.checked)}
-									/>
-									<span className="check-box" aria-hidden="true" />
-									<span className="item-name">{item.name}</span>
-									<span className="item-qty">{item.quantity}</span>
-								</label>
-							</li>
-						))}
-					</ul>
-				</section>
-			))}
+		<div className="app-shell">
+			<header className="top-bar">
+				<span className="app-title">
+					<ShoppingCart weight="duotone" size={20} />
+					மளிகை பட்டியல்
+				</span>
+			</header>
+			<main className="main-area">
+				<div className="list-pane">
+					{grouped.map((group) => {
+						const Icon = categoryIcon(group.category.id);
+						return (
+							<section key={group.category.id} className="category-group">
+								<h3>
+									<Icon weight="duotone" size={16} />
+									{group.category.ta}
+								</h3>
+								<ul>
+									{group.items.map((item) => (
+										<li key={item.id} className={item.ticked ? "ticked" : ""}>
+											<label>
+												<input
+													type="checkbox"
+													className="check-input"
+													checked={item.ticked}
+													onChange={(event) => toggle(item.id, event.target.checked)}
+												/>
+												<span className="check-box" aria-hidden="true" />
+												<span className="item-name">{item.name}</span>
+												<span className="item-qty">{item.quantity}</span>
+											</label>
+										</li>
+									))}
+								</ul>
+							</section>
+						);
+					})}
+				</div>
+			</main>
 		</div>
 	);
 }
