@@ -383,7 +383,8 @@ input {
 	color: var(--color-accent);
 }
 
-.category-group ul {
+.category-group ul,
+.draft-item-list {
 	list-style: none;
 	margin: 0 0 0.6rem;
 	padding: 0;
@@ -392,7 +393,8 @@ input {
 	gap: 0.3rem;
 }
 
-.category-group li {
+.category-group li,
+.draft-item-list li {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -406,7 +408,8 @@ input {
 		box-shadow var(--duration-fast) var(--ease-standard);
 }
 
-.category-group li:hover {
+.category-group li:hover,
+.draft-item-list li:hover {
 	box-shadow: var(--shadow-md);
 }
 

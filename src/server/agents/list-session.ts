@@ -1,10 +1,13 @@
 import { Agent, callable } from "agents";
-import type { ListItem, SessionState } from "../../shared/types";
-import { extractItems } from "../lib/extract";
+import type { DraftItem, SessionState } from "../../shared/types";
+import { categorizeItems, extractItems } from "../lib/extract";
 import { finalizeList } from "../lib/db";
 
-function itemKey(item: Pick<ListItem, "name" | "category">): string {
-	return `${item.category}:${item.name.trim().toLowerCase()}`;
+// Items aren't categorized until finalize (see DraftItem), so the exclusion
+// key is just the name now - fine in practice, since a duplicate item name
+// across two different categories is not a real grocery-list scenario.
+function itemKey(item: Pick<DraftItem, "name">): string {
+	return item.name.trim().toLowerCase();
 }
 
 export class ListSessionAgent extends Agent<Env, SessionState> {
@@ -128,7 +131,8 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 		if (this.state.finalizedSlug) {
 			return { slug: this.state.finalizedSlug };
 		}
-		const slug = await finalizeList(this.env.DB, this.state.transcript, this.state.items);
+		const categorized = await categorizeItems(this.env, this.state.items);
+		const slug = await finalizeList(this.env.DB, this.state.transcript, categorized);
 		this.setState({ ...this.state, status: "done", finalizedSlug: slug });
 		return { slug };
 	}
