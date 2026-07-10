@@ -47,13 +47,6 @@ function RecordingView() {
 				)}
 			</header>
 			<main className="main-area">
-				<Recorder
-					transcript={state?.transcript ?? ""}
-					status={state?.status ?? "idle"}
-					onSegment={(text) => {
-						agent.stub.addTranscriptSegment(text);
-					}}
-				/>
 				<LiveList
 					items={state?.items ?? []}
 					onFinalize={async () => {
@@ -61,6 +54,13 @@ function RecordingView() {
 					}}
 					onDelete={(itemId) => {
 						agent.stub.deleteItem(itemId);
+					}}
+				/>
+				<Recorder
+					transcript={state?.transcript ?? ""}
+					status={state?.status ?? "idle"}
+					onSegment={(text) => {
+						agent.stub.addTranscriptSegment(text);
 					}}
 				/>
 			</main>

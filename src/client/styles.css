@@ -150,7 +150,7 @@ input {
 	max-width: 640px;
 	width: 100%;
 	margin: 0 auto;
-	padding: 0.6rem 0.85rem 0;
+	padding: 0.6rem 0.85rem max(0.6rem, env(safe-area-inset-bottom));
 	gap: 0.65rem;
 }
 

@@ -44,7 +44,8 @@ export function LiveList({ items, onFinalize, onDelete }: Props) {
 
 			{items.length > 0 && (
 				<ul className="draft-item-list">
-					{items.map((item) => (
+					{/* Extraction lists items oldest-first; reversed so whatever you just said is at the top. */}
+					{[...items].reverse().map((item) => (
 						<li key={item.id}>
 							<span className="item-info">
 								<span className="item-name">{item.name}</span>
