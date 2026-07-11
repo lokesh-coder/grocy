@@ -1,35 +1,44 @@
 :root {
-	color-scheme: dark;
-	--font-sans: "Catamaran", "Noto Sans Tamil", system-ui, sans-serif;
+	color-scheme: light;
+	--font-sans: "Meera Inimai", "Nunito", "Noto Sans Tamil", system-ui, sans-serif;
 
-	/* Always-dark, premium palette (Netflix-style: near-black surfaces, one
-	   bold accent, high contrast) - deliberately not theme-adaptive. */
-	--color-bg: #0a0a0c;
-	--color-surface: #17171a;
-	--color-surface-alt: #1e1e22;
-	--color-border: rgba(255, 255, 255, 0.08);
-	--color-border-strong: rgba(255, 255, 255, 0.14);
-	--color-text: #f5f5f2;
-	--color-text-muted: #97969d;
+	/* Warm, light, "Claude-esque" palette: cream paper background, one
+	   confident terracotta accent, plus a small "fun" palette used for
+	   category color-coding, the loader, and confetti - the app has few
+	   features to lean on, so color carries a lot of the personality. */
+	--color-bg: #f8f5ec;
+	--color-surface: #ffffff;
+	--color-surface-alt: #f1ead9;
+	--color-border: #eae1cc;
+	--color-border-strong: #ddd0af;
+	--color-text: #2b2620;
+	--color-text-muted: #8f8574;
 
-	--color-accent: #2ee6a6;
-	--color-accent-strong: #14b881;
-	--color-accent-soft: rgba(46, 230, 166, 0.14);
-	--color-accent-glow: rgba(46, 230, 166, 0.35);
+	--color-accent: #d97757;
+	--color-accent-strong: #bf5e40;
+	--color-accent-soft: #fbe8dd;
+	--color-accent-glow: rgba(217, 119, 87, 0.3);
 
-	--color-danger: #ff4d5e;
-	--color-danger-strong: #d63347;
-	--color-danger-soft: rgba(255, 77, 94, 0.14);
-	--color-danger-glow: rgba(255, 77, 94, 0.4);
+	--color-danger: #dd4b39;
+	--color-danger-strong: #bd3a2a;
+	--color-danger-soft: #fce3dd;
+	--color-danger-glow: rgba(221, 75, 57, 0.3);
+
+	--color-fun-coral: #d97757;
+	--color-fun-gold: #e3a23d;
+	--color-fun-sage: #6e9b72;
+	--color-fun-blue: #5a8fb5;
+	--color-fun-berry: #b65c7a;
+	--color-fun-violet: #8b7ec8;
 
 	--radius-sm: 12px;
 	--radius-md: 18px;
 	--radius-lg: 28px;
 	--radius-pill: 999px;
 
-	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
-	--shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
-	--shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.6);
+	--shadow-sm: 0 1px 3px rgba(43, 38, 32, 0.08);
+	--shadow-md: 0 8px 20px rgba(43, 38, 32, 0.1);
+	--shadow-lg: 0 20px 44px rgba(43, 38, 32, 0.14);
 
 	--ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 	--ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -80,7 +89,9 @@ input {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	background: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(46, 230, 166, 0.08), transparent 60%),
+	background:
+		radial-gradient(ellipse 700px 400px at 15% -5%, rgba(217, 119, 87, 0.1), transparent 60%),
+		radial-gradient(ellipse 600px 380px at 100% 10%, rgba(110, 155, 114, 0.08), transparent 55%),
 		var(--color-bg);
 }
 
@@ -90,7 +101,7 @@ input {
 	align-items: center;
 	justify-content: space-between;
 	padding: 0.75rem 0.9rem;
-	background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+	background: color-mix(in srgb, var(--color-bg) 75%, transparent);
 	backdrop-filter: blur(16px);
 	-webkit-backdrop-filter: blur(16px);
 	box-shadow: 0 1px 0 var(--color-border);
@@ -102,7 +113,7 @@ input {
 	gap: 0.45rem;
 	font-weight: 800;
 	font-size: 1.05rem;
-	letter-spacing: -0.015em;
+	letter-spacing: -0.01em;
 	color: var(--color-text);
 }
 
@@ -115,7 +126,7 @@ input {
 	align-items: center;
 	gap: 0.3rem;
 	padding: 0.4rem 0.9rem;
-	border: 1px solid var(--color-border-strong);
+	border: 1.5px solid var(--color-border-strong);
 	border-radius: var(--radius-pill);
 	background: var(--color-surface);
 	color: var(--color-text);
@@ -131,15 +142,15 @@ input {
 .new-list-button:hover {
 	border-color: var(--color-accent);
 	background: var(--color-accent-soft);
-	color: var(--color-accent);
+	color: var(--color-accent-strong);
 }
 
 .new-list-button:active {
 	transform: scale(0.95);
 }
 
-/* ---------- Main area: compact record bar on top (fixed height),
-   list-pane fills and scrolls the rest ---------- */
+/* ---------- Main area: list fills the top, record bar anchored at the
+   bottom like a chat input ---------- */
 
 .main-area {
 	flex: 1;
@@ -163,7 +174,7 @@ input {
 	gap: 0.8rem;
 	padding: 0.65rem 0.8rem;
 	border-radius: var(--radius-md);
-	background: linear-gradient(155deg, var(--color-surface-alt), var(--color-surface));
+	background: var(--color-surface);
 	border: 1px solid var(--color-border);
 	box-shadow: var(--shadow-sm);
 	animation: fade-in var(--duration-base) var(--ease-standard) both;
@@ -180,11 +191,11 @@ input {
 	border: none;
 	cursor: pointer;
 	background: linear-gradient(160deg, var(--color-accent), var(--color-accent-strong));
-	color: #06120d;
+	color: #fff8f2;
 	box-shadow:
 		var(--shadow-sm),
-		0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-		0 4px 18px var(--color-accent-glow);
+		0 4px 16px var(--color-accent-glow);
+	animation: mic-breathe 2.6s ease-in-out infinite;
 	transition:
 		transform var(--duration-fast) var(--ease-bounce),
 		box-shadow var(--duration-fast) var(--ease-standard);
@@ -198,12 +209,25 @@ input {
 	transform: scale(0.92);
 }
 
+@keyframes mic-breathe {
+	0%,
+	100% {
+		box-shadow:
+			var(--shadow-sm),
+			0 4px 16px var(--color-accent-glow);
+	}
+	50% {
+		box-shadow:
+			var(--shadow-sm),
+			0 4px 20px 4px var(--color-accent-glow);
+	}
+}
+
 .mic-button.recording {
 	color: white;
 	background: linear-gradient(160deg, var(--color-danger), var(--color-danger-strong));
 	box-shadow:
 		var(--shadow-sm),
-		0 0 0 1px rgba(255, 255, 255, 0.08) inset,
 		0 4px 18px var(--color-danger-glow);
 	animation: mic-pulse 1.8s ease-out infinite;
 }
@@ -212,20 +236,17 @@ input {
 	0% {
 		box-shadow:
 			var(--shadow-sm),
-			0 0 0 1px rgba(255, 255, 255, 0.08) inset,
 			0 0 0 0 var(--color-danger-glow);
 	}
 	70% {
 		box-shadow:
 			var(--shadow-sm),
-			0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-			0 0 0 12px rgba(255, 77, 94, 0);
+			0 0 0 12px rgba(221, 75, 57, 0);
 	}
 	100% {
 		box-shadow:
 			var(--shadow-sm),
-			0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-			0 0 0 0 rgba(255, 77, 94, 0);
+			0 0 0 0 rgba(221, 75, 57, 0);
 	}
 }
 
@@ -261,9 +282,48 @@ input {
 	animation: dot-breathe 1.4s ease-in-out infinite;
 }
 
-.status-dot.busy {
-	background: var(--color-accent);
-	animation-duration: 0.8s;
+/* Playful three-dot "thinking" loader shown while the list is being
+   re-extracted - each dot takes a different fun-palette color instead of a
+   single flat pulse, so waiting reads as "working on it" not "stuck". */
+.loader-dots {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.loader-dot {
+	width: 0.4em;
+	height: 0.4em;
+	border-radius: 50%;
+	animation: loader-bounce 1s ease-in-out infinite;
+}
+
+.loader-dot:nth-child(1) {
+	background: var(--color-fun-coral);
+	animation-delay: 0s;
+}
+
+.loader-dot:nth-child(2) {
+	background: var(--color-fun-gold);
+	animation-delay: 0.15s;
+}
+
+.loader-dot:nth-child(3) {
+	background: var(--color-fun-blue);
+	animation-delay: 0.3s;
+}
+
+@keyframes loader-bounce {
+	0%,
+	80%,
+	100% {
+		transform: translateY(0);
+		opacity: 0.5;
+	}
+	40% {
+		transform: translateY(-0.3em);
+		opacity: 1;
+	}
 }
 
 @keyframes dot-breathe {
@@ -349,7 +409,7 @@ input {
 }
 
 .placeholder-text {
-	opacity: 0.6;
+	opacity: 0.7;
 }
 
 .live-cursor {
@@ -387,8 +447,52 @@ input {
 
 .empty-hint {
 	color: var(--color-text-muted);
-	font-size: 0.85rem;
-	padding-top: 0.5rem;
+	font-size: 0.9rem;
+	font-weight: 600;
+	padding: 1.5rem;
+	text-align: center;
+}
+
+.empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 0.5rem;
+	padding: 2.5rem 1rem;
+	color: var(--color-text-muted);
+	animation: fade-in var(--duration-base) var(--ease-standard) both;
+}
+
+.empty-state svg {
+	color: var(--color-accent);
+	opacity: 0.8;
+	animation: empty-wiggle 3.2s ease-in-out infinite;
+}
+
+.empty-state p {
+	margin: 0;
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+
+@keyframes empty-wiggle {
+	0%,
+	100% {
+		transform: rotate(0deg);
+	}
+	5% {
+		transform: rotate(-8deg);
+	}
+	10% {
+		transform: rotate(7deg);
+	}
+	15% {
+		transform: rotate(-5deg);
+	}
+	20% {
+		transform: rotate(0deg);
+	}
 }
 
 .category-group {
@@ -404,12 +508,12 @@ input {
 	font-weight: 800;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
-	color: var(--color-text-muted);
+	color: var(--cat-color, var(--color-text-muted));
 }
 
 .category-group h3 svg {
 	flex-shrink: 0;
-	color: var(--color-accent);
+	color: var(--cat-color, var(--color-accent));
 }
 
 .category-group ul,
@@ -431,7 +535,7 @@ input {
 	border-radius: var(--radius-sm);
 	background: var(--color-surface);
 	border: 1px solid var(--color-border);
-	animation: fade-slide-in var(--duration-base) var(--ease-standard) both;
+	animation: pop-in var(--duration-base) var(--ease-bounce) both;
 	transition:
 		opacity var(--duration-base) var(--ease-standard),
 		border-color var(--duration-fast) var(--ease-standard),
@@ -454,6 +558,17 @@ input {
 	to {
 		opacity: 1;
 		transform: translateY(0);
+	}
+}
+
+@keyframes pop-in {
+	from {
+		opacity: 0;
+		transform: scale(0.9) translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
 	}
 }
 
@@ -519,10 +634,11 @@ input {
 .delete-item-button:hover {
 	background: var(--color-danger-soft);
 	color: var(--color-danger);
+	transform: rotate(90deg);
 }
 
 .delete-item-button:active {
-	transform: scale(0.85);
+	transform: rotate(90deg) scale(0.8);
 }
 
 .done-button {
@@ -534,23 +650,23 @@ input {
 	border: none;
 	border-radius: var(--radius-pill);
 	background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
-	color: #06120d;
+	color: #fff8f2;
 	font-size: 0.9rem;
 	font-weight: 800;
 	cursor: pointer;
 	box-shadow:
 		var(--shadow-sm),
-		0 6px 20px var(--color-accent-glow);
+		0 6px 18px var(--color-accent-glow);
 	transition:
 		transform var(--duration-fast) var(--ease-bounce),
 		box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .done-button:hover:not(:disabled) {
-	transform: translateY(-2px);
+	transform: translateY(-2px) scale(1.02);
 	box-shadow:
 		var(--shadow-md),
-		0 10px 28px var(--color-accent-glow);
+		0 10px 24px var(--color-accent-glow);
 }
 
 .done-button:active:not(:disabled) {
@@ -564,6 +680,7 @@ input {
 }
 
 .share-box {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
@@ -572,7 +689,8 @@ input {
 	border-radius: var(--radius-md);
 	background: linear-gradient(155deg, var(--color-accent-soft), var(--color-surface));
 	border: 1px solid var(--color-border);
-	animation: fade-slide-in var(--duration-base) var(--ease-bounce) both;
+	overflow: hidden;
+	animation: pop-in var(--duration-base) var(--ease-bounce) both;
 }
 
 .share-box p {
@@ -588,6 +706,83 @@ input {
 	color: var(--color-accent);
 }
 
+/* A handful of hand-placed confetti pieces that burst outward once when the
+   share box appears - purely decorative, no JS randomness needed. */
+.confetti-burst {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	overflow: visible;
+}
+
+.confetti-piece {
+	position: absolute;
+	top: 18px;
+	left: 50%;
+	width: 7px;
+	height: 7px;
+	border-radius: 2px;
+	opacity: 0;
+	animation: confetti-fly 900ms var(--ease-standard) both;
+}
+
+.confetti-piece:nth-child(1) {
+	background: var(--color-fun-coral);
+	--tx: -70px;
+	--ty: -30px;
+	--rot: -140deg;
+	animation-delay: 0ms;
+}
+.confetti-piece:nth-child(2) {
+	background: var(--color-fun-gold);
+	--tx: -35px;
+	--ty: -50px;
+	--rot: 120deg;
+	animation-delay: 40ms;
+}
+.confetti-piece:nth-child(3) {
+	background: var(--color-fun-sage);
+	--tx: 0px;
+	--ty: -58px;
+	--rot: -90deg;
+	animation-delay: 80ms;
+}
+.confetti-piece:nth-child(4) {
+	background: var(--color-fun-blue);
+	--tx: 38px;
+	--ty: -48px;
+	--rot: 160deg;
+	animation-delay: 30ms;
+}
+.confetti-piece:nth-child(5) {
+	background: var(--color-fun-berry);
+	--tx: 68px;
+	--ty: -26px;
+	--rot: -110deg;
+	animation-delay: 70ms;
+}
+.confetti-piece:nth-child(6) {
+	background: var(--color-fun-violet);
+	--tx: 20px;
+	--ty: -66px;
+	--rot: 90deg;
+	animation-delay: 110ms;
+}
+
+@keyframes confetti-fly {
+	0% {
+		opacity: 1;
+		transform: translate(-50%, 0) rotate(0deg) scale(0.6);
+	}
+	70% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+		transform: translate(calc(-50% + var(--tx)), var(--ty)) rotate(var(--rot)) scale(1);
+	}
+}
+
 .whatsapp-link {
 	display: inline-flex;
 	align-items: center;
@@ -595,11 +790,11 @@ input {
 	padding: 0.6rem 1.3rem;
 	border-radius: var(--radius-pill);
 	background: #25d366;
-	color: #06120d;
+	color: #062013;
 	font-size: 0.88rem;
 	font-weight: 800;
 	text-decoration: none;
-	box-shadow: var(--shadow-sm), 0 6px 20px rgba(37, 211, 102, 0.3);
+	box-shadow: var(--shadow-sm), 0 6px 18px rgba(37, 211, 102, 0.3);
 	transition:
 		transform var(--duration-fast) var(--ease-bounce),
 		box-shadow var(--duration-fast) var(--ease-standard);
@@ -607,7 +802,7 @@ input {
 
 .whatsapp-link:hover {
 	transform: translateY(-2px);
-	box-shadow: var(--shadow-md), 0 10px 28px rgba(37, 211, 102, 0.35);
+	box-shadow: var(--shadow-md), 0 10px 24px rgba(37, 211, 102, 0.35);
 }
 
 .whatsapp-link:active {
@@ -619,7 +814,7 @@ input {
 	align-items: center;
 	gap: 0.4rem;
 	padding: 0.5rem 1.1rem;
-	border: 1px solid var(--color-border-strong);
+	border: 1.5px solid var(--color-border-strong);
 	border-radius: var(--radius-pill);
 	background: var(--color-surface);
 	color: var(--color-text);
@@ -633,7 +828,7 @@ input {
 
 .copy-button:hover {
 	border-color: var(--color-accent);
-	color: var(--color-accent);
+	color: var(--color-accent-strong);
 }
 
 .copy-button:active {
@@ -671,16 +866,16 @@ input {
 	margin: auto;
 	width: 0.36rem;
 	height: 0.65rem;
-	border-right: 2.5px solid #06120d;
-	border-bottom: 2.5px solid #06120d;
+	border-right: 2.5px solid #fff8f2;
+	border-bottom: 2.5px solid #fff8f2;
 	transform: translateY(-1px) rotate(45deg) scale(0);
 	transform-origin: center;
 	transition: transform var(--duration-fast) var(--ease-bounce);
 }
 
 .check-input:checked + .check-box {
-	background: var(--color-accent);
-	border-color: var(--color-accent);
+	background: var(--cat-color, var(--color-accent));
+	border-color: var(--cat-color, var(--color-accent));
 }
 
 .check-input:checked + .check-box::after {

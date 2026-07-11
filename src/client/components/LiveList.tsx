@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, CheckCircle, Confetti, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
+import { Basket, Check, CheckCircle, Confetti, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
 import type { DraftItem } from "../../shared/types";
 
 type Props = {
@@ -40,7 +40,12 @@ export function LiveList({ items, onFinalize, onDelete }: Props) {
 
 	return (
 		<div className="list-pane">
-			{items.length === 0 && <p className="empty-hint">பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>}
+			{items.length === 0 && (
+				<div className="empty-state">
+					<Basket weight="duotone" size={40} />
+					<p>பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>
+				</div>
+			)}
 
 			{items.length > 0 && (
 				<ul className="draft-item-list">
@@ -77,6 +82,14 @@ export function LiveList({ items, onFinalize, onDelete }: Props) {
 
 			{shareUrl && (
 				<div className="share-box">
+					<span className="confetti-burst" aria-hidden="true">
+						<span className="confetti-piece" />
+						<span className="confetti-piece" />
+						<span className="confetti-piece" />
+						<span className="confetti-piece" />
+						<span className="confetti-piece" />
+						<span className="confetti-piece" />
+					</span>
 					<p>
 						<Confetti weight="duotone" size={16} /> பட்டியல் தயார்!
 					</p>

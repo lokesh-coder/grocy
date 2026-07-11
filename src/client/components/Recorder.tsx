@@ -81,7 +81,15 @@ export function Recorder({ transcript, status, onSegment }: Props) {
 							<span className="wave-bar" />
 						</span>
 					)}
-					{showBusy && <span className={`status-dot ${status === "extracting" ? "busy" : ""}`} />}
+					{status === "extracting" ? (
+						<span className="loader-dots" aria-hidden="true">
+							<span className="loader-dot" />
+							<span className="loader-dot" />
+							<span className="loader-dot" />
+						</span>
+					) : (
+						showBusy && <span className="status-dot" />
+					)}
 					{statusText(isRecording, status)}
 				</p>
 

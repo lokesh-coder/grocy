@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ShoppingCart } from "@phosphor-icons/react";
 import { CATEGORIES } from "../../shared/categories";
 import { categoryIcon } from "../lib/categoryIcons";
+import { categoryColor } from "../lib/categoryColors";
 import type { SharedList } from "../../shared/types";
 
 type Props = {
@@ -78,7 +79,11 @@ export function SharedListPage({ slug }: Props) {
 					{grouped.map((group) => {
 						const Icon = categoryIcon(group.category.id);
 						return (
-							<section key={group.category.id} className="category-group">
+							<section
+								key={group.category.id}
+								className="category-group"
+								style={{ "--cat-color": categoryColor(group.category.id) } as CSSProperties}
+							>
 								<h3>
 									<Icon weight="duotone" size={16} />
 									{group.category.ta}
