@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Microphone, Stop } from "@phosphor-icons/react";
 import {
 	isSpeechRecognitionSupported,
@@ -11,10 +11,15 @@ type Props = {
 	transcript: string;
 	status: SessionState["status"];
 	onSegment: (text: string) => void;
+	onRecordingChange?: (isRecording: boolean) => void;
 };
 
-export function Recorder({ transcript, status, onSegment }: Props) {
+export function Recorder({ transcript, status, onSegment, onRecordingChange }: Props) {
 	const [isRecording, setIsRecording] = useState(false);
+
+	useEffect(() => {
+		onRecordingChange?.(isRecording);
+	}, [isRecording, onRecordingChange]);
 	const [interimText, setInterimText] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const handleRef = useRef<LiveTranscriptionHandle | null>(null);

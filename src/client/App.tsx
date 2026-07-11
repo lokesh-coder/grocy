@@ -23,6 +23,7 @@ function startNewList() {
 
 function RecordingView() {
 	const [sessionId] = useState(getOrCreateSessionId);
+	const [isRecording, setIsRecording] = useState(false);
 
 	const agent = useAgent<SessionState>({
 		agent: "ListSessionAgent",
@@ -49,6 +50,8 @@ function RecordingView() {
 			<main className="main-area">
 				<LiveList
 					items={state?.items ?? []}
+					status={state?.status ?? "idle"}
+					isRecording={isRecording}
 					onFinalize={async () => {
 						return await agent.stub.finalize();
 					}}
@@ -62,6 +65,7 @@ function RecordingView() {
 					onSegment={(text) => {
 						agent.stub.addTranscriptSegment(text);
 					}}
+					onRecordingChange={setIsRecording}
 				/>
 			</main>
 		</div>

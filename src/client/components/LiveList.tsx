@@ -1,17 +1,25 @@
 import { useState } from "react";
 import { Basket, Check, CheckCircle, Confetti, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
-import type { DraftItem } from "../../shared/types";
+import type { DraftItem, SessionState } from "../../shared/types";
 
 type Props = {
 	items: DraftItem[];
+	status: SessionState["status"];
+	isRecording: boolean;
 	onFinalize: () => Promise<{ slug: string }>;
 	onDelete: (itemId: string) => void;
 };
 
-export function LiveList({ items, onFinalize, onDelete }: Props) {
+export function LiveList({ items, status, isRecording, onFinalize, onDelete }: Props) {
+	// Gated on isRecording too, not just status, so the placeholder disappears
+	// the instant you hit stop - a final catch-up extraction can still be
+	// running server-side after that, but you're no longer watching for a new
+	// item to land, so showing it then reads as stuck rather than in-progress.
+	const showSkeleton = isRecording && status === "extracting";
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [finalizing, setFinalizing] = useState(false);
 	const [copied, setCopied] = useState(false);
+	const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
 	async function handleDone() {
 		setFinalizing(true);
@@ -40,29 +48,45 @@ export function LiveList({ items, onFinalize, onDelete }: Props) {
 
 	return (
 		<div className="list-pane">
-			{items.length === 0 && (
+			{items.length === 0 && !showSkeleton && (
 				<div className="empty-state">
-					<Basket weight="duotone" size={40} />
+					<Basket weight="duotone" size={56} />
 					<p>பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>
 				</div>
 			)}
 
-			{items.length > 0 && (
+			{(items.length > 0 || showSkeleton) && (
 				<ul className="draft-item-list">
+					{/* At the top, where new items land, so a slow pass reads as "working" not "stuck". */}
+					{showSkeleton && (
+						<li className="skeleton-item" aria-hidden="true">
+							<span className="skeleton-bar skeleton-bar-name" />
+							<span className="skeleton-bar skeleton-bar-qty" />
+						</li>
+					)}
 					{/* Extraction lists items oldest-first; reversed so whatever you just said is at the top. */}
 					{[...items].reverse().map((item) => (
-						<li key={item.id}>
-							<span className="item-info">
-								<span className="item-name">{item.name}</span>
+						<li
+							key={item.id}
+							className={activeItemId === item.id ? "active" : ""}
+							onClick={() => setActiveItemId((prev) => (prev === item.id ? null : item.id))}
+						>
+							<span className="item-name">{item.name}</span>
+							<span className="row-right">
 								<span className="item-qty">{item.quantity}</span>
+								{activeItemId === item.id && (
+									<button
+										className="delete-item-button"
+										aria-label={`${item.name} நீக்கு`}
+										onClick={(event) => {
+											event.stopPropagation();
+											onDelete(item.id);
+										}}
+									>
+										<X weight="bold" size={13} />
+									</button>
+								)}
 							</span>
-							<button
-								className="delete-item-button"
-								aria-label={`${item.name} நீக்கு`}
-								onClick={() => onDelete(item.id)}
-							>
-								<X weight="bold" size={13} />
-							</button>
 						</li>
 					))}
 				</ul>
