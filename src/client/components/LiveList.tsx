@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Basket, Check, CheckCircle, Confetti, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
 import type { DraftItem, SessionState } from "../../shared/types";
 
@@ -8,9 +8,12 @@ type Props = {
 	isRecording: boolean;
 	onFinalize: () => Promise<{ slug: string }>;
 	onDelete: (itemId: string) => void;
+	onQuickAdd: (text: string) => void;
 };
 
-export function LiveList({ items, status, isRecording, onFinalize, onDelete }: Props) {
+type FrequentItem = { name: string; quantity: string };
+
+export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQuickAdd }: Props) {
 	// Gated on isRecording too, not just status, so the placeholder disappears
 	// the instant you hit stop - a final catch-up extraction can still be
 	// running server-side after that, but you're no longer watching for a new
@@ -20,6 +23,16 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete }: P
 	const [finalizing, setFinalizing] = useState(false);
 	const [copied, setCopied] = useState(false);
 	const [activeItemId, setActiveItemId] = useState<string | null>(null);
+	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
+
+	useEffect(() => {
+		fetch("/api/frequent-items")
+			.then((res) => res.json() as Promise<{ items: FrequentItem[] }>)
+			.then((data) => setFrequentItems(data.items))
+			.catch(() => {
+				// Not critical - the empty state just won't show quick-add chips.
+			});
+	}, []);
 
 	async function handleDone() {
 		setFinalizing(true);
@@ -52,6 +65,19 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete }: P
 				<div className="empty-state">
 					<Basket weight="duotone" size={56} />
 					<p>பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>
+					{frequentItems.length > 0 && (
+						<div className="quick-add-chips">
+							{frequentItems.map((item) => (
+								<button
+									key={item.name}
+									className="quick-add-chip"
+									onClick={() => onQuickAdd(`${item.name} ${item.quantity} வேணும்.`)}
+								>
+									{item.name}
+								</button>
+							))}
+						</div>
+					)}
 				</div>
 			)}
 

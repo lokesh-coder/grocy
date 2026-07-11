@@ -1,10 +1,15 @@
 import { routeAgentRequest } from "agents";
 import { Hono } from "hono";
-import { getList, setItemTicked } from "./lib/db";
+import { getFrequentItems, getList, setItemTicked } from "./lib/db";
 
 export { ListSessionAgent } from "./agents/list-session";
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.get("/api/frequent-items", async (c) => {
+	const items = await getFrequentItems(c.env.DB);
+	return c.json({ items });
+});
 
 app.get("/api/list/:slug", async (c) => {
 	const list = await getList(c.env.DB, c.req.param("slug"));

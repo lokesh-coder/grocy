@@ -6,18 +6,23 @@ import { LiveList } from "./components/LiveList";
 import { SharedListPage } from "./components/SharedListPage";
 import type { SessionState } from "../shared/types";
 
+// localStorage (not sessionStorage) so an in-progress list survives the PWA
+// being fully closed mid-dictation, not just backgrounded - a phone can get
+// killed by the OS for memory at any point. The id is cleared as soon as a
+// list is finalized (see the effect in RecordingView below), so a completed
+// list still starts fresh next time rather than lingering forever.
 const SESSION_STORAGE_KEY = "grocy-session-id";
 
 function getOrCreateSessionId(): string {
-	const existing = sessionStorage.getItem(SESSION_STORAGE_KEY);
+	const existing = localStorage.getItem(SESSION_STORAGE_KEY);
 	if (existing) return existing;
 	const created = crypto.randomUUID();
-	sessionStorage.setItem(SESSION_STORAGE_KEY, created);
+	localStorage.setItem(SESSION_STORAGE_KEY, created);
 	return created;
 }
 
 function startNewList() {
-	sessionStorage.removeItem(SESSION_STORAGE_KEY);
+	localStorage.removeItem(SESSION_STORAGE_KEY);
 	window.location.reload();
 }
 
@@ -32,6 +37,12 @@ function RecordingView() {
 
 	const state = agent.state;
 	const hasContent = (state?.transcript.length ?? 0) > 0 || (state?.items.length ?? 0) > 0;
+
+	useEffect(() => {
+		if (state?.finalizedSlug) {
+			localStorage.removeItem(SESSION_STORAGE_KEY);
+		}
+	}, [state?.finalizedSlug]);
 
 	return (
 		<div className="app-shell">
@@ -57,6 +68,9 @@ function RecordingView() {
 					}}
 					onDelete={(itemId) => {
 						agent.stub.deleteItem(itemId);
+					}}
+					onQuickAdd={(text) => {
+						agent.stub.addTranscriptSegment(text);
 					}}
 				/>
 				<Recorder

@@ -60,3 +60,30 @@ export async function setItemTicked(db: D1Database, slug: string, itemId: string
 		.run();
 	return (result.meta.changes ?? 0) > 0;
 }
+
+type FrequentItemRow = { name: string; quantity: string };
+
+// Exact-name grouping, not fuzzy matching - if the same item gets
+// transcribed slightly differently between trips it'll be counted
+// separately. Acceptable for a household with consistent speech patterns;
+// not worth a real dedup system for two users.
+export async function getFrequentItems(db: D1Database, limit = 8): Promise<FrequentItemRow[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT name, quantity FROM (
+				SELECT
+					i.name AS name,
+					i.quantity AS quantity,
+					COUNT(*) OVER (PARTITION BY i.name) AS freq,
+					ROW_NUMBER() OVER (PARTITION BY i.name ORDER BY l.created_at DESC) AS rn
+				FROM items i
+				JOIN lists l ON i.list_id = l.id
+			)
+			WHERE rn = 1
+			ORDER BY freq DESC
+			LIMIT ?`,
+		)
+		.bind(limit)
+		.all<FrequentItemRow>();
+	return results;
+}
