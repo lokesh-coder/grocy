@@ -5,13 +5,16 @@ export type ListItem = {
 	name: string;
 	quantity: string;
 	category: CategoryId;
+	// Best-effort, filled in once at finalize via a web-search-grounded model
+	// call - null when the model had no confident basis to estimate.
+	estimatedPrice: number | null;
 };
 
-// While dictating, items aren't categorized yet - category is only assigned
-// once at "Done" (see categorizeItems in extract.ts), so the reasoning pass
-// that runs on every live segment has one less thing to decide and the list
-// doesn't reshuffle between category groups while you're still talking.
-export type DraftItem = Omit<ListItem, "category">;
+// While dictating, items aren't categorized or priced yet - both are only
+// assigned once at "Done" (see categorizeItems/estimatePrices in extract.ts),
+// so the reasoning pass that runs on every live segment has less to decide
+// and the list doesn't reshuffle between category groups while still talking.
+export type DraftItem = Omit<ListItem, "category" | "estimatedPrice">;
 
 export type SessionState = {
 	transcript: string;

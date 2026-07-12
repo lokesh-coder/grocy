@@ -1,6 +1,6 @@
 import { Agent, callable } from "agents";
 import type { DraftItem, SessionState } from "../../shared/types";
-import { categorizeItems, extractItems } from "../lib/extract";
+import { categorizeItems, estimatePrices, extractItems } from "../lib/extract";
 import { finalizeList } from "../lib/db";
 
 // Items aren't categorized until finalize (see DraftItem), so the exclusion
@@ -132,7 +132,8 @@ export class ListSessionAgent extends Agent<Env, SessionState> {
 			return { slug: this.state.finalizedSlug };
 		}
 		const categorized = await categorizeItems(this.env, this.state.items);
-		const slug = await finalizeList(this.env.DB, this.state.transcript, categorized);
+		const priced = await estimatePrices(this.env, categorized);
+		const slug = await finalizeList(this.env.DB, this.state.transcript, priced);
 		this.setState({ ...this.state, status: "done", finalizedSlug: slug });
 		return { slug };
 	}

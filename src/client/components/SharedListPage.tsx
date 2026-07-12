@@ -39,6 +39,17 @@ export function SharedListPage({ slug }: Props) {
 		})).filter((group) => group.items.length > 0);
 	}, [list]);
 
+	// Best-effort estimate, not every item necessarily has a price (see
+	// estimatePrices in extract.ts) - only sum what's actually priced, and
+	// say so if that's not everything.
+	const priceSummary = useMemo(() => {
+		if (!list) return null;
+		const priced = list.items.filter((item) => item.estimatedPrice != null);
+		if (priced.length === 0) return null;
+		const total = priced.reduce((sum, item) => sum + (item.estimatedPrice ?? 0), 0);
+		return { total, pricedCount: priced.length, totalCount: list.items.length };
+	}, [list]);
+
 	async function toggle(itemId: string, ticked: boolean) {
 		setList((prev) =>
 			prev ? { ...prev, items: prev.items.map((item) => (item.id === itemId ? { ...item, ticked } : item)) } : prev,
@@ -76,6 +87,13 @@ export function SharedListPage({ slug }: Props) {
 			</header>
 			<main className="main-area">
 				<div className="list-pane">
+					{priceSummary && (
+						<p className="price-summary">
+							மதிப்பிடப்பட்ட மொத்தம்: ₹{Math.round(priceSummary.total)}
+							{priceSummary.pricedCount < priceSummary.totalCount &&
+								` (${priceSummary.pricedCount}/${priceSummary.totalCount} பொருட்களுக்கு)`}
+						</p>
+					)}
 					{grouped.map((group) => {
 						const Icon = categoryIcon(group.category.id);
 						return (
@@ -100,7 +118,12 @@ export function SharedListPage({ slug }: Props) {
 												/>
 												<span className="check-box" aria-hidden="true" />
 												<span className="item-name">{item.name}</span>
-												<span className="item-qty">{item.quantity}</span>
+												<span className="item-qty">
+													{item.quantity}
+													{item.estimatedPrice != null && (
+														<span className="item-price"> · ₹{Math.round(item.estimatedPrice)}</span>
+													)}
+												</span>
 											</label>
 										</li>
 									))}

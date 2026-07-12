@@ -755,6 +755,21 @@ input {
 	white-space: nowrap;
 }
 
+.item-price {
+	font-weight: 600;
+	color: var(--color-accent-strong);
+}
+
+.price-summary {
+	margin: 0 0 0.75rem;
+	padding: 0.6rem 0.85rem;
+	border-radius: var(--radius-sm);
+	background: var(--color-accent-soft);
+	color: var(--color-text);
+	font-size: 0.85rem;
+	font-weight: 700;
+}
+
 .delete-item-button {
 	flex-shrink: 0;
 	width: 1.5rem;
@@ -816,18 +831,25 @@ input {
 }
 
 .done-button:disabled {
-	opacity: 0.6;
+	opacity: 1;
 	cursor: default;
 	box-shadow: var(--shadow-sm);
+}
+
+/* White dots instead of the fun-palette colors while inside the accent-
+   gradient button, where the coral/gold dots would otherwise blend in. */
+.done-button.is-finalizing .loader-dot {
+	background: #fff8f2;
 }
 
 .share-box {
 	position: relative;
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
-	gap: 0.6rem;
-	padding: 1rem 1.1rem;
+	align-items: center;
+	text-align: center;
+	gap: 0.35rem;
+	padding: 1.3rem 1.1rem 1.1rem;
 	border-radius: var(--radius-md);
 	background: linear-gradient(155deg, var(--color-accent-soft), var(--color-surface));
 	border: 1px solid var(--color-border);
@@ -835,17 +857,60 @@ input {
 	animation: pop-in var(--duration-base) var(--ease-bounce) both;
 }
 
-.share-box p {
+.share-badge {
 	display: flex;
 	align-items: center;
-	gap: 0.35rem;
-	margin: 0;
-	font-size: 0.9rem;
-	font-weight: 700;
+	justify-content: center;
+	width: 52px;
+	height: 52px;
+	border-radius: 50%;
+	margin-bottom: 0.3rem;
+	background: linear-gradient(160deg, var(--color-accent), var(--color-accent-strong));
+	color: #fff8f2;
+	box-shadow:
+		var(--shadow-sm),
+		0 6px 18px var(--color-accent-glow);
+	animation: share-badge-pop 500ms var(--ease-bounce) both;
 }
 
-.share-box p svg {
-	color: var(--color-accent);
+@keyframes share-badge-pop {
+	from {
+		transform: scale(0.4) rotate(-20deg);
+		opacity: 0;
+	}
+	to {
+		transform: scale(1) rotate(0deg);
+		opacity: 1;
+	}
+}
+
+.share-title {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 800;
+}
+
+.share-subtitle {
+	margin: 0 0 0.4rem;
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--color-text-muted);
+}
+
+.share-actions {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	gap: 0.5rem;
+}
+
+.share-actions-row {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.share-actions-row > * {
+	flex: 1;
 }
 
 /* A handful of hand-placed confetti pieces that burst outward once when the
@@ -859,7 +924,7 @@ input {
 
 .confetti-piece {
 	position: absolute;
-	top: 18px;
+	top: 44px;
 	left: 50%;
 	width: 7px;
 	height: 7px;
@@ -928,8 +993,10 @@ input {
 .whatsapp-link {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	gap: 0.4rem;
-	padding: 0.6rem 1.3rem;
+	width: 100%;
+	padding: 0.65rem 1.3rem;
 	border-radius: var(--radius-pill);
 	background: #25d366;
 	color: #062013;
@@ -951,29 +1018,34 @@ input {
 	transform: scale(0.96);
 }
 
-.copy-button {
+.copy-button,
+.view-list-link {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.4rem;
-	padding: 0.5rem 1.1rem;
+	justify-content: center;
+	gap: 0.35rem;
+	padding: 0.5rem 0.8rem;
 	border: 1.5px solid var(--color-border-strong);
 	border-radius: var(--radius-pill);
 	background: var(--color-surface);
 	color: var(--color-text);
-	font-size: 0.85rem;
+	font-size: 0.82rem;
 	font-weight: 700;
+	text-decoration: none;
 	cursor: pointer;
 	transition:
 		transform var(--duration-fast) var(--ease-standard),
 		border-color var(--duration-fast) var(--ease-standard);
 }
 
-.copy-button:hover {
+.copy-button:hover,
+.view-list-link:hover {
 	border-color: var(--color-accent);
 	color: var(--color-accent-strong);
 }
 
-.copy-button:active {
+.copy-button:active,
+.view-list-link:active {
 	transform: scale(0.96);
 }
 

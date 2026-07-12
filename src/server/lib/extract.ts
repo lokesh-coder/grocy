@@ -34,7 +34,7 @@ Rules:
 - If one quantity is said to apply to several items together (e.g. "தக்காளி வெங்காயம் ஒவ்வொண்ணும் ஒரு கிலோ" = tomato and onion, one kg each), apply that quantity to each item individually, not split between them - unless the person clearly means a combined/mixed amount.
 - Vague quantities ("கொஞ்சம்", "கொஞ்சம் அதிகமா", "இன்னும் கொஞ்சம்") are a real answer, not a missing one - keep them as spoken (e.g. "கொஞ்சம்") instead of inventing a number or unit for them.
 - Ignore filler words, hesitations, and false starts ("ம்ம்", "பாரு", "இல்ல... இல்ல") - they're not items.
-- Keep item names in Tamil exactly as spoken.
+- Keep item names in Tamil exactly as spoken - except when a name is really a Tamil-script phonetic spelling of an English word or brand name (e.g. "எஸ் வி எஸ்" = "SVS", "ஹார்லிக்ஸ்" = "Horlicks", "டைப்பர்" = "Diaper"). Speech recognition transliterates English words into Tamil script since it's listening in Tamil, but these are conventionally written in English - write them that way instead of the Tamil transliteration.
 - If no quantity was mentioned at all for an item, use exactly "1" as its quantity - never leave it blank or write "not specified".
 - Only include items the person currently wants - never something explicitly replaced or cancelled. If nothing has been said yet, return an empty list.`;
 
@@ -169,6 +169,86 @@ export async function categorizeItems(env: ExtractEnv, items: DraftItem[]): Prom
 	return items.map((item, index) => ({
 		...item,
 		category: categoryByIndex.get(index) ?? "other",
+		estimatedPrice: null,
+	}));
+}
+
+// Runs once at "Done", after categorization - a single web-search-grounded
+// call (":online") covering the whole list, so the model can pull real
+// current prices from Indian grocery/quick-commerce listings instead of
+// guessing from training data. Best-effort: prices are point estimates, not
+// authoritative, and an item is simply left unpriced if the model has no
+// confident basis - never a fabricated number. "low" reasoning effort here
+// cut cost roughly 10x in testing (large default-effort searches balloon
+// prompt tokens) with no meaningful quality loss.
+const PRICE_SYSTEM_PROMPT = `You estimate current Indian grocery prices. You'll get a numbered list of grocery items (name and quantity, Tamil sometimes mixed with English) being bought in Tamil Nadu, India. For each item, search current Indian grocery/quick-commerce listings (BigBasket, Zepto, Blinkit, and similar) and give a single reasonable approximate price in rupees for that exact quantity - a point estimate, not a range. If you have no reasonable basis to estimate a specific item, omit it entirely rather than guessing wildly.`;
+
+const PRICE_SCHEMA = {
+	name: "item_prices",
+	strict: true,
+	schema: {
+		type: "object",
+		properties: {
+			prices: {
+				type: "array",
+				items: {
+					type: "object",
+					properties: {
+						index: { type: "integer" },
+						price_rupees: { type: "number" },
+					},
+					required: ["index", "price_rupees"],
+					additionalProperties: false,
+				},
+			},
+		},
+		required: ["prices"],
+		additionalProperties: false,
+	},
+};
+
+export async function estimatePrices(env: ExtractEnv, items: ListItem[]): Promise<ListItem[]> {
+	if (items.length === 0) return items;
+
+	const numberedList = items.map((item, index) => `${index}. ${item.name} - ${item.quantity}`).join("\n");
+
+	let response: Response;
+	try {
+		response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				model: `${env.EXTRACTION_MODEL || DEFAULT_MODEL}:online`,
+				max_tokens: 2000,
+				reasoning: { effort: env.EXTRACTION_REASONING_EFFORT || DEFAULT_REASONING_EFFORT },
+				messages: [
+					{ role: "system", content: PRICE_SYSTEM_PROMPT },
+					{ role: "user", content: numberedList },
+				],
+				response_format: { type: "json_schema", json_schema: PRICE_SCHEMA },
+			}),
+		});
+	} catch (error) {
+		// Pricing is a nice-to-have enrichment, not core to the list - a
+		// network hiccup here shouldn't block finalizing the list itself.
+		console.error("Price estimation request failed, leaving items unpriced", error);
+		return items;
+	}
+
+	if (!response.ok) {
+		console.error("Price estimation failed, leaving items unpriced", response.status, await response.text());
+		return items;
+	}
+
+	const result = await response.json();
+	const priceByIndex = parsePricesResponse(result);
+
+	return items.map((item, index) => ({
+		...item,
+		estimatedPrice: priceByIndex.get(index) ?? null,
 	}));
 }
 
@@ -192,6 +272,24 @@ function parseCategoriesResponse(result: unknown): Map<number, CategoryId> {
 		const index = Number(entry?.index);
 		if (Number.isInteger(index) && isCategoryId(entry?.category)) {
 			map.set(index, entry.category);
+		}
+	}
+	return map;
+}
+
+function parsePricesResponse(result: unknown): Map<number, number> {
+	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message
+		?.content;
+	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
+	const prices = (parsed as { prices?: unknown })?.prices;
+	const entries = Array.isArray(prices) ? prices : [];
+
+	const map = new Map<number, number>();
+	for (const entry of entries as Array<{ index?: unknown; price_rupees?: unknown }>) {
+		const index = Number(entry?.index);
+		const price = Number(entry?.price_rupees);
+		if (Number.isInteger(index) && Number.isFinite(price) && price > 0) {
+			map.set(index, price);
 		}
 	}
 	return map;

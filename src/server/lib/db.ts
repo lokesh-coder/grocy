@@ -11,9 +11,9 @@ export async function finalizeList(db: D1Database, transcript: string, items: Li
 		...items.map((item, index) =>
 			db
 				.prepare(
-					"INSERT INTO items (id, list_id, name, quantity, category, ticked, sort_order) VALUES (?, ?, ?, ?, ?, 0, ?)",
+					"INSERT INTO items (id, list_id, name, quantity, category, ticked, sort_order, estimated_price) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
 				)
-				.bind(nanoid(8), slug, item.name, item.quantity, item.category, index),
+				.bind(nanoid(8), slug, item.name, item.quantity, item.category, index, item.estimatedPrice),
 		),
 	];
 
@@ -29,6 +29,7 @@ type ItemRow = {
 	category: string;
 	ticked: number;
 	sort_order: number;
+	estimated_price: number | null;
 };
 
 export async function getList(db: D1Database, slug: string): Promise<SharedList | null> {
@@ -36,7 +37,9 @@ export async function getList(db: D1Database, slug: string): Promise<SharedList 
 	if (!list) return null;
 
 	const { results } = await db
-		.prepare("SELECT id, name, quantity, category, ticked, sort_order FROM items WHERE list_id = ? ORDER BY sort_order")
+		.prepare(
+			"SELECT id, name, quantity, category, ticked, sort_order, estimated_price FROM items WHERE list_id = ? ORDER BY sort_order",
+		)
 		.bind(slug)
 		.all<ItemRow>();
 
@@ -49,6 +52,7 @@ export async function getList(db: D1Database, slug: string): Promise<SharedList 
 			quantity: row.quantity,
 			category: row.category as CategoryId,
 			ticked: row.ticked === 1,
+			estimatedPrice: row.estimated_price,
 		})),
 	};
 }

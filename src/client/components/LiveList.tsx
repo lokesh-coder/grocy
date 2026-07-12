@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
-import { Basket, Check, CheckCircle, Confetti, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+import { Basket, Check, CheckCircle, Confetti, Eye, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
 import type { DraftItem, SessionState } from "../../shared/types";
+
+// Finalizing now does two real API calls in sequence (categorize, then
+// estimate prices), so it's a few seconds longer than it used to be -
+// cycling through what's actually happening is more honest than a single
+// static "wait" label, and gives the eye something to track meanwhile.
+const FINALIZING_STEPS = ["பட்டியலை ஒழுங்குபடுத்துகிறேன்…", "விலை மதிப்பிடுகிறேன்…"];
 
 type Props = {
 	items: DraftItem[];
@@ -21,9 +27,11 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 	const showSkeleton = isRecording && status === "extracting";
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [finalizing, setFinalizing] = useState(false);
+	const [finalizingStep, setFinalizingStep] = useState(0);
 	const [copied, setCopied] = useState(false);
 	const [activeItemId, setActiveItemId] = useState<string | null>(null);
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
+	const finalizingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	useEffect(() => {
 		fetch("/api/frequent-items")
@@ -36,11 +44,16 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 
 	async function handleDone() {
 		setFinalizing(true);
+		setFinalizingStep(0);
+		finalizingIntervalRef.current = setInterval(() => {
+			setFinalizingStep((step) => (step + 1) % FINALIZING_STEPS.length);
+		}, 1800);
 		try {
 			const { slug } = await onFinalize();
 			setShareUrl(`${window.location.origin}/list/${slug}`);
 		} finally {
 			setFinalizing(false);
+			if (finalizingIntervalRef.current) clearInterval(finalizingIntervalRef.current);
 		}
 	}
 
@@ -119,9 +132,16 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 			)}
 
 			{items.length > 0 && !shareUrl && (
-				<button className="done-button" disabled={finalizing} onClick={handleDone}>
+				<button className={`done-button ${finalizing ? "is-finalizing" : ""}`} disabled={finalizing} onClick={handleDone}>
 					{finalizing ? (
-						"முடிக்கிறேன்…"
+						<>
+							<span className="loader-dots" aria-hidden="true">
+								<span className="loader-dot" />
+								<span className="loader-dot" />
+								<span className="loader-dot" />
+							</span>
+							{FINALIZING_STEPS[finalizingStep]}
+						</>
 					) : (
 						<>
 							<Check weight="bold" size={15} /> முடிந்தது
@@ -140,29 +160,40 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 						<span className="confetti-piece" />
 						<span className="confetti-piece" />
 					</span>
-					<p>
-						<Confetti weight="duotone" size={16} /> பட்டியல் தயார்!
-					</p>
-					<a
-						className="whatsapp-link"
-						href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
-						target="_blank"
-						rel="noreferrer"
-					>
-						<WhatsappLogo weight="duotone" size={17} />
-						WhatsApp-இல் பகிரவும்
-					</a>
-					<button className="copy-button" onClick={handleShare}>
-						{copied ? (
-							<>
-								<CheckCircle weight="fill" size={15} /> நகலெடுக்கப்பட்டது!
-							</>
-						) : (
-							<>
-								<LinkSimple weight="bold" size={15} /> இணைப்பை நகலெடு
-							</>
-						)}
-					</button>
+					<div className="share-badge">
+						<Confetti weight="duotone" size={28} />
+					</div>
+					<p className="share-title">பட்டியல் தயார்!</p>
+					<p className="share-subtitle">இப்போது பகிரலாம் அல்லது பார்க்கலாம்</p>
+
+					<div className="share-actions">
+						<a
+							className="whatsapp-link"
+							href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
+							target="_blank"
+							rel="noreferrer"
+						>
+							<WhatsappLogo weight="duotone" size={18} />
+							WhatsApp-இல் பகிரவும்
+						</a>
+						<div className="share-actions-row">
+							<a className="view-list-link" href={shareUrl} target="_blank" rel="noreferrer">
+								<Eye weight="bold" size={15} />
+								பட்டியலைப் பார்
+							</a>
+							<button className="copy-button" onClick={handleShare}>
+								{copied ? (
+									<>
+										<CheckCircle weight="fill" size={15} /> நகலெடுக்கப்பட்டது!
+									</>
+								) : (
+									<>
+										<LinkSimple weight="bold" size={15} /> இணைப்பை நகலெடு
+									</>
+								)}
+							</button>
+						</div>
+					</div>
 				</div>
 			)}
 		</div>
