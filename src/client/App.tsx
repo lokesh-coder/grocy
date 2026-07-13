@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAgent } from "agents/react";
-import { ShoppingCart, Plus } from "@phosphor-icons/react";
+import { CheckCircle, Eye, Plus, ShareNetwork, ShoppingCart, WhatsappLogo } from "@phosphor-icons/react";
 import { Recorder, type RecorderHandle } from "./components/Recorder";
 import { LiveList } from "./components/LiveList";
 import { SharedListPage } from "./components/SharedListPage";
@@ -28,8 +28,12 @@ function startNewList() {
 
 function RecordingView() {
 	const [sessionId] = useState(getOrCreateSessionId);
-	const [isRecording, setIsRecording] = useState(false);
 	const recorderRef = useRef<RecorderHandle>(null);
+	// Raw, unprocessed segments as they're recognized - purely a local echo
+	// so the live view updates instantly with no server round-trip. The real
+	// transcript still goes to the Durable Object below for persistence and
+	// the one real extraction pass at finalize.
+	const [segments, setSegments] = useState<string[]>([]);
 
 	const agent = useAgent<SessionState>({
 		agent: "ListSessionAgent",
@@ -37,7 +41,32 @@ function RecordingView() {
 	});
 
 	const state = agent.state;
-	const hasContent = (state?.transcript.length ?? 0) > 0 || (state?.items.length ?? 0) > 0;
+	const hasContent = segments.length > 0 || (state?.items.length ?? 0) > 0;
+	// Derived straight from synced state rather than tracked separately - the
+	// moment finalize() succeeds, this flips and the bottom bar swaps from
+	// the mic (nothing left to record) to the share/view/new-list actions.
+	const shareUrl = state?.finalizedSlug ? `${window.location.origin}/list/${state.finalizedSlug}` : null;
+	const [copied, setCopied] = useState(false);
+
+	function addSegment(text: string) {
+		setSegments((prev) => [...prev, text]);
+		agent.stub.addTranscriptSegment(text);
+	}
+
+	async function handleShare() {
+		if (!shareUrl) return;
+		if (navigator.share) {
+			try {
+				await navigator.share({ title: "மளிகை பட்டியல்", url: shareUrl });
+				return;
+			} catch {
+				// user cancelled or share failed - fall through to clipboard
+			}
+		}
+		await navigator.clipboard.writeText(shareUrl);
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
+	}
 
 	useEffect(() => {
 		if (state?.finalizedSlug) {
@@ -62,30 +91,49 @@ function RecordingView() {
 			<main className="main-area">
 				<LiveList
 					items={state?.items ?? []}
-					status={state?.status ?? "idle"}
-					isRecording={isRecording}
+					segments={segments}
+					isFinalized={!!shareUrl}
 					onFinalize={async () => {
 						// Stop the mic first, in case Done is clicked mid-recording -
 						// otherwise it keeps listening even after the list is finalized.
 						recorderRef.current?.stop();
 						return await agent.stub.finalize();
 					}}
-					onDelete={(itemId) => {
-						agent.stub.deleteItem(itemId);
-					}}
-					onQuickAdd={(text) => {
-						agent.stub.addTranscriptSegment(text);
-					}}
+					onQuickAdd={addSegment}
 				/>
-				<Recorder
-					ref={recorderRef}
-					transcript={state?.transcript ?? ""}
-					status={state?.status ?? "idle"}
-					onSegment={(text) => {
-						agent.stub.addTranscriptSegment(text);
-					}}
-					onRecordingChange={setIsRecording}
-				/>
+				{shareUrl ? (
+					<div className="share-actions-bar">
+						<span className="confetti-burst" aria-hidden="true">
+							<span className="confetti-piece" />
+							<span className="confetti-piece" />
+							<span className="confetti-piece" />
+							<span className="confetti-piece" />
+							<span className="confetti-piece" />
+							<span className="confetti-piece" />
+						</span>
+						<button className="action-icon-button" aria-label="புதிய பட்டியல்" onClick={startNewList}>
+							<Plus weight="bold" size={20} />
+						</button>
+						<a
+							className="action-icon-button whatsapp"
+							aria-label="WhatsApp-இல் பகிரவும்"
+							href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
+							target="_blank"
+							rel="noreferrer"
+						>
+							<WhatsappLogo weight="fill" size={24} />
+						</a>
+						<button className="action-icon-button" aria-label="பகிரவும்" onClick={handleShare}>
+							{copied ? <CheckCircle weight="fill" size={20} /> : <ShareNetwork weight="bold" size={20} />}
+						</button>
+						{/* No target="_blank" - a detached window has no back-stack in the installed PWA. */}
+						<a className="action-icon-button" aria-label="பட்டியலைப் பார்" href={shareUrl}>
+							<Eye weight="bold" size={20} />
+						</a>
+					</div>
+				) : (
+					<Recorder ref={recorderRef} onSegment={addSegment} />
+				)}
 			</main>
 		</div>
 	);

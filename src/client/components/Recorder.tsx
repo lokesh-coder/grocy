@@ -1,33 +1,21 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Microphone, Stop } from "@phosphor-icons/react";
-import {
-	isSpeechRecognitionSupported,
-	startLiveTranscription,
-	type LiveTranscriptionHandle,
-} from "../lib/liveTranscription";
-import type { SessionState } from "../../shared/types";
+import { isSpeechRecognitionSupported, startLiveTranscription, type LiveTranscriptionHandle } from "../lib/liveTranscription";
 
 type Props = {
-	transcript: string;
-	status: SessionState["status"];
 	onSegment: (text: string) => void;
-	onRecordingChange?: (isRecording: boolean) => void;
 };
 
 export type RecorderHandle = {
 	stop: () => void;
 };
 
-export const Recorder = forwardRef<RecorderHandle, Props>(function Recorder(
-	{ transcript, status, onSegment, onRecordingChange },
-	ref,
-) {
+// The teleprompter feed above (and the Done button's own loading state)
+// already show what's being said and when something's processing, so this
+// bar doesn't need to duplicate any of that - just the control itself, made
+// as prominent as possible since it's the one thing you interact with here.
+export const Recorder = forwardRef<RecorderHandle, Props>(function Recorder({ onSegment }, ref) {
 	const [isRecording, setIsRecording] = useState(false);
-
-	useEffect(() => {
-		onRecordingChange?.(isRecording);
-	}, [isRecording, onRecordingChange]);
-	const [interimText, setInterimText] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const handleRef = useRef<LiveTranscriptionHandle | null>(null);
 	const supported = useMemo(() => isSpeechRecognitionSupported(), []);
@@ -41,7 +29,7 @@ export const Recorder = forwardRef<RecorderHandle, Props>(function Recorder(
 		try {
 			const handle = startLiveTranscription({
 				onFinalSegment: onSegment,
-				onInterimUpdate: setInterimText,
+				onInterimUpdate: () => {},
 				onError: (message) => {
 					console.error("speech recognition error:", message);
 					if (message === "not-allowed") {
@@ -64,17 +52,10 @@ export const Recorder = forwardRef<RecorderHandle, Props>(function Recorder(
 		handleRef.current?.stop();
 		handleRef.current = null;
 		setIsRecording(false);
-		setInterimText("");
 	}, []);
 
 	// Lets App stop the mic before finalizing, in case Done is clicked without pressing stop first.
 	useImperativeHandle(ref, () => ({ stop }), [stop]);
-
-	// Stays visible even after the mic visually stops, since the server may
-	// still be extracting the last thing you said - reverting to "press mic
-	// to start" immediately made that work look like it never happened until
-	// something else (like clicking Done) nudged it along.
-	const showBusy = isRecording || status === "extracting";
 
 	return (
 		<div className="record-bar">
@@ -83,62 +64,9 @@ export const Recorder = forwardRef<RecorderHandle, Props>(function Recorder(
 				onClick={isRecording ? stop : start}
 				aria-label={isRecording ? "பதிவை நிறுத்து" : "பதிவைத் தொடங்கு"}
 			>
-				{isRecording ? <Stop weight="fill" size={22} /> : <Microphone weight="duotone" size={26} />}
+				{isRecording ? <Stop weight="fill" size={30} /> : <Microphone weight="duotone" size={34} />}
 			</button>
-
-			<div className="record-info">
-				<p className={`status-line ${showBusy ? "is-live" : ""}`}>
-					{isRecording && (
-						<span className="wave" aria-hidden="true">
-							<span className="wave-bar" />
-							<span className="wave-bar" />
-							<span className="wave-bar" />
-							<span className="wave-bar" />
-						</span>
-					)}
-					{status === "extracting" ? (
-						<span className="loader-dots" aria-hidden="true">
-							<span className="loader-dot" />
-							<span className="loader-dot" />
-							<span className="loader-dot" />
-						</span>
-					) : (
-						showBusy && <span className="status-dot" />
-					)}
-					{statusText(isRecording, status)}
-				</p>
-
-				{error ? (
-					<p className="error-line">{error}</p>
-				) : (
-					<p className="live-transcript">
-						{!transcript && !interimText && <span className="placeholder-text">பேசத் தொடங்குங்கள்…</span>}
-						{tailText(transcript)}
-						{transcript && interimText ? " " : ""}
-						<span className="interim-text">{interimText}</span>
-						{isRecording && <span className="live-cursor" />}
-					</p>
-				)}
-			</div>
+			{error && <p className="error-line">{error}</p>}
 		</div>
 	);
 });
-
-function statusText(isRecording: boolean, status: SessionState["status"]): string {
-	if (status === "extracting") return "பட்டியலை புதுப்பிக்கிறேன்…";
-	if (!isRecording) return "தொடங்க மைக்கை அழுத்தவும்";
-	return "கேட்கிறேன்…";
-}
-
-// This is a compact "what you just said" line, not a transcript archive - the
-// grocery list below is the real content. A long session's transcript can run
-// to thousands of characters, and CSS line-clamp truncation cuts off the END
-// (hiding the newest words, keeping stale ones), which is backwards for a
-// live caption. Trimming to the tail in JS keeps the most recent speech
-// visible no matter how long the session runs.
-const MAX_TRANSCRIPT_TAIL = 140;
-
-function tailText(text: string): string {
-	if (text.length <= MAX_TRANSCRIPT_TAIL) return text;
-	return `…${text.slice(-MAX_TRANSCRIPT_TAIL)}`;
-}

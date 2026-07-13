@@ -201,23 +201,24 @@ input {
 
 /* ---------- Record bar ---------- */
 
+/* Just the control itself - the teleprompter feed above already shows what's
+   being said, and the Done button's own loading state already shows when
+   something's processing, so this doesn't need to duplicate either. Made as
+   prominent as possible since it's the one thing you actually touch here. */
 .record-bar {
 	flex-shrink: 0;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
-	gap: 0.8rem;
-	padding: 0.65rem 0.8rem;
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	box-shadow: var(--shadow-sm);
+	gap: 0.5rem;
+	padding: 0.9rem 0.8rem;
 	animation: fade-in var(--duration-base) var(--ease-standard) both;
 }
 
 .mic-button {
 	flex-shrink: 0;
-	width: 48px;
-	height: 48px;
+	width: 80px;
+	height: 80px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -227,8 +228,8 @@ input {
 	background: linear-gradient(160deg, var(--color-accent), var(--color-accent-strong));
 	color: #fff8f2;
 	box-shadow:
-		var(--shadow-sm),
-		0 4px 16px var(--color-accent-glow);
+		var(--shadow-md),
+		0 6px 22px var(--color-accent-glow);
 	animation: mic-breathe 2.6s ease-in-out infinite;
 	transition:
 		transform var(--duration-fast) var(--ease-bounce),
@@ -247,13 +248,13 @@ input {
 	0%,
 	100% {
 		box-shadow:
-			var(--shadow-sm),
-			0 4px 16px var(--color-accent-glow);
+			var(--shadow-md),
+			0 6px 22px var(--color-accent-glow);
 	}
 	50% {
 		box-shadow:
-			var(--shadow-sm),
-			0 4px 20px 4px var(--color-accent-glow);
+			var(--shadow-md),
+			0 6px 28px 6px var(--color-accent-glow);
 	}
 }
 
@@ -261,59 +262,27 @@ input {
 	color: white;
 	background: linear-gradient(160deg, var(--color-danger), var(--color-danger-strong));
 	box-shadow:
-		var(--shadow-sm),
-		0 4px 18px var(--color-danger-glow);
+		var(--shadow-md),
+		0 6px 24px var(--color-danger-glow);
 	animation: mic-pulse 1.8s ease-out infinite;
 }
 
 @keyframes mic-pulse {
 	0% {
 		box-shadow:
-			var(--shadow-sm),
+			var(--shadow-md),
 			0 0 0 0 var(--color-danger-glow);
 	}
 	70% {
 		box-shadow:
-			var(--shadow-sm),
-			0 0 0 12px rgba(221, 75, 57, 0);
+			var(--shadow-md),
+			0 0 0 16px rgba(221, 75, 57, 0);
 	}
 	100% {
 		box-shadow:
-			var(--shadow-sm),
+			var(--shadow-md),
 			0 0 0 0 rgba(221, 75, 57, 0);
 	}
-}
-
-.record-info {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 0.15rem;
-}
-
-.status-line {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.4rem;
-	color: var(--color-text-muted);
-	font-size: 0.78rem;
-	font-weight: 700;
-	min-height: 1.2em;
-	transition: color var(--duration-base) var(--ease-standard);
-}
-
-.status-line.is-live {
-	color: var(--color-text);
-}
-
-.status-dot {
-	width: 0.45em;
-	height: 0.45em;
-	flex-shrink: 0;
-	border-radius: 50%;
-	background: var(--color-danger);
-	animation: dot-breathe 1.4s ease-in-out infinite;
 }
 
 /* Playful three-dot "thinking" loader shown while the list is being
@@ -360,110 +329,12 @@ input {
 	}
 }
 
-@keyframes dot-breathe {
-	0%,
-	100% {
-		opacity: 0.35;
-		transform: scale(0.85);
-	}
-	50% {
-		opacity: 1;
-		transform: scale(1.15);
-	}
-}
-
-/* Decorative waveform shown only while recording - Web Speech API doesn't
-   expose mic amplitude to the page, so this is a looping staggered-bar
-   animation rather than something reactive to actual voice volume. */
-.wave {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
-	height: 12px;
-	flex-shrink: 0;
-}
-
-.wave-bar {
-	width: 2.5px;
-	height: 100%;
-	border-radius: 2px;
-	background: var(--color-danger);
-	transform-origin: center;
-	animation: wave-bounce 0.9s ease-in-out infinite;
-}
-
-.wave-bar:nth-child(1) {
-	animation-delay: 0s;
-}
-
-.wave-bar:nth-child(2) {
-	animation-delay: 0.15s;
-}
-
-.wave-bar:nth-child(3) {
-	animation-delay: 0.3s;
-}
-
-.wave-bar:nth-child(4) {
-	animation-delay: 0.45s;
-}
-
-@keyframes wave-bounce {
-	0%,
-	100% {
-		transform: scaleY(0.3);
-	}
-	50% {
-		transform: scaleY(1);
-	}
-}
-
 .error-line {
 	color: var(--color-danger);
 	font-size: 0.8rem;
 	margin: 0;
+	text-align: center;
 	animation: fade-in var(--duration-base) var(--ease-standard) both;
-}
-
-.live-transcript {
-	margin: 0;
-	font-size: 0.82rem;
-	line-height: 1.4;
-	color: var(--color-text-muted);
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-}
-
-.interim-text {
-	opacity: 0.75;
-	font-style: italic;
-	color: var(--color-text);
-}
-
-.placeholder-text {
-	opacity: 0.7;
-}
-
-.live-cursor {
-	display: inline-block;
-	width: 2px;
-	height: 1em;
-	margin-left: 2px;
-	vertical-align: text-bottom;
-	background: var(--color-accent);
-	animation: cursor-blink 1s step-end infinite;
-}
-
-@keyframes cursor-blink {
-	0%,
-	100% {
-		opacity: 1;
-	}
-	50% {
-		opacity: 0;
-	}
 }
 
 /* ---------- List pane: the dominant, scrollable area ---------- */
@@ -646,56 +517,53 @@ input {
 	background-position: bottom;
 	background-size: 9px 1px;
 	background-repeat: repeat-x;
-	cursor: pointer;
 	animation: pop-in var(--duration-base) var(--ease-bounce) both;
-	transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
 .draft-item-list li:last-child {
 	background-image: none;
 }
 
-.draft-item-list li:hover,
-.draft-item-list li.active {
-	background-color: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
-}
-
-.row-right {
+/* Teleprompter-style running log of raw segments - deliberately not styled
+   like list items (no card, no shadow) so a rough or partial line doesn't
+   read as broken. The newest line is big/bold/vivid and centered - "direct
+   to face" since this is the one thing you're watching while you talk -
+   older lines shrink and fade as they recede. Real item cards only appear
+   after Done. */
+.notes-feed {
+	flex: 1;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
-	gap: 0.35rem;
-	flex-shrink: 0;
+	justify-content: center;
+	gap: 0.55rem;
+	max-width: 480px;
+	margin: 0 auto;
+	padding: 1rem 0.5rem;
+	text-align: center;
 }
 
-.skeleton-item:hover {
-	background: transparent;
+.notes-line {
+	margin: 0;
+	color: var(--line-color, var(--color-text-muted));
+	font-size: var(--line-size, 0.85rem);
+	font-weight: var(--line-weight, 600);
+	opacity: var(--line-opacity, 1);
+	line-height: 1.35;
+	transition:
+		opacity var(--duration-base) var(--ease-standard),
+		font-size var(--duration-base) var(--ease-standard);
+	animation: notes-line-in 420ms var(--ease-bounce) both;
 }
 
-.skeleton-bar {
-	display: inline-block;
-	height: 0.8rem;
-	border-radius: 6px;
-	background: linear-gradient(90deg, var(--color-border) 25%, var(--color-border-strong) 50%, var(--color-border) 75%);
-	background-size: 200% 100%;
-	animation: skeleton-shimmer 1.3s ease-in-out infinite;
-}
-
-.skeleton-bar-name {
-	width: 45%;
-}
-
-.skeleton-bar-qty {
-	width: 2.4rem;
-	margin-left: 0.5rem;
-	flex-shrink: 0;
-}
-
-@keyframes skeleton-shimmer {
-	0% {
-		background-position: 200% 0;
+@keyframes notes-line-in {
+	from {
+		opacity: 0;
+		transform: scale(0.85) translateY(6px);
 	}
-	100% {
-		background-position: -200% 0;
+	to {
+		opacity: var(--line-opacity, 1);
+		transform: scale(1) translateY(0);
 	}
 }
 
@@ -770,49 +638,29 @@ input {
 	font-weight: 700;
 }
 
-.delete-item-button {
-	flex-shrink: 0;
-	width: 1.5rem;
-	height: 1.5rem;
+/* Full-width and sticky to the bottom of the scrollable list-pane, matching
+   the same visual weight as the other primary CTAs (organize-button) instead
+   of a small corner pill - and always visible right above the record bar
+   without needing to scroll down to find it. */
+.done-button {
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	border: none;
-	border-radius: 50%;
-	background: transparent;
-	color: var(--color-text-muted);
-	cursor: pointer;
-	transition:
-		background var(--duration-fast) var(--ease-standard),
-		color var(--duration-fast) var(--ease-standard),
-		transform var(--duration-fast) var(--ease-bounce);
-}
-
-.delete-item-button:hover {
-	background: var(--color-danger-soft);
-	color: var(--color-danger);
-	transform: rotate(90deg);
-}
-
-.delete-item-button:active {
-	transform: rotate(90deg) scale(0.8);
-}
-
-.done-button {
-	align-self: flex-start;
-	display: inline-flex;
-	align-items: center;
 	gap: 0.4rem;
-	padding: 0.65rem 1.5rem;
+	width: 100%;
+	padding: 0.75rem 1.5rem;
 	border: none;
 	border-radius: var(--radius-pill);
 	background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
 	color: #fff8f2;
-	font-size: 0.9rem;
+	font-size: 0.92rem;
 	font-weight: 800;
 	cursor: pointer;
 	box-shadow:
-		var(--shadow-sm),
+		var(--shadow-md),
 		0 6px 18px var(--color-accent-glow);
 	transition:
 		transform var(--duration-fast) var(--ease-bounce),
@@ -884,79 +732,75 @@ input {
 	box-shadow: var(--shadow-sm);
 }
 
-.share-box {
+/* Replaces the mic bar once finalized - nothing left to record, so the same
+   fixed bottom slot becomes a compact row of the actions you'd actually
+   want next (new list, WhatsApp, generic share, view) instead of a tall
+   card competing for scroll space with a potentially long finished list. */
+.share-actions-bar {
 	position: relative;
+	flex-shrink: 0;
 	display: flex;
-	flex-direction: column;
 	align-items: center;
-	text-align: center;
-	gap: 0.35rem;
-	padding: 1.3rem 1.1rem 1.1rem;
-	border-radius: var(--radius-md);
-	background: linear-gradient(155deg, var(--color-accent-soft), var(--color-surface));
-	border: 1px solid var(--color-border);
-	overflow: hidden;
-	animation: pop-in var(--duration-base) var(--ease-bounce) both;
+	justify-content: center;
+	gap: 0.9rem;
+	padding: 0.9rem 0.8rem;
+	animation: fade-in var(--duration-base) var(--ease-standard) both;
 }
 
-.share-badge {
+.action-icon-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 52px;
 	height: 52px;
+	flex-shrink: 0;
 	border-radius: 50%;
-	margin-bottom: 0.3rem;
-	background: linear-gradient(160deg, var(--color-accent), var(--color-accent-strong));
-	color: #fff8f2;
+	border: 1.5px solid var(--color-border-strong);
+	background: var(--color-surface);
+	color: var(--color-text);
+	text-decoration: none;
+	cursor: pointer;
+	box-shadow: var(--shadow-sm);
+	transition:
+		transform var(--duration-fast) var(--ease-bounce),
+		box-shadow var(--duration-fast) var(--ease-standard),
+		border-color var(--duration-fast) var(--ease-standard);
+	animation: pop-in var(--duration-base) var(--ease-bounce) both;
+}
+
+.action-icon-button:hover {
+	border-color: var(--color-accent);
+	color: var(--color-accent-strong);
+	transform: translateY(-2px);
+	box-shadow: var(--shadow-md);
+}
+
+.action-icon-button:active {
+	transform: scale(0.92);
+}
+
+/* WhatsApp is the most likely next step, so it gets more visual weight -
+   bigger, brand-colored - while the rest stay as neutral outline buttons. */
+.action-icon-button.whatsapp {
+	width: 64px;
+	height: 64px;
+	border: none;
+	background: #25d366;
+	color: #062013;
 	box-shadow:
-		var(--shadow-sm),
-		0 6px 18px var(--color-accent-glow);
-	animation: share-badge-pop 500ms var(--ease-bounce) both;
+		var(--shadow-md),
+		0 6px 18px rgba(37, 211, 102, 0.35);
 }
 
-@keyframes share-badge-pop {
-	from {
-		transform: scale(0.4) rotate(-20deg);
-		opacity: 0;
-	}
-	to {
-		transform: scale(1) rotate(0deg);
-		opacity: 1;
-	}
-}
-
-.share-title {
-	margin: 0;
-	font-size: 1.05rem;
-	font-weight: 800;
-}
-
-.share-subtitle {
-	margin: 0 0 0.4rem;
-	font-size: 0.8rem;
-	font-weight: 600;
-	color: var(--color-text-muted);
-}
-
-.share-actions {
-	display: flex;
-	flex-direction: column;
-	width: 100%;
-	gap: 0.5rem;
-}
-
-.share-actions-row {
-	display: flex;
-	gap: 0.5rem;
-}
-
-.share-actions-row > * {
-	flex: 1;
+.action-icon-button.whatsapp:hover {
+	transform: translateY(-2px) scale(1.03);
+	box-shadow:
+		var(--shadow-lg),
+		0 10px 24px rgba(37, 211, 102, 0.4);
 }
 
 /* A handful of hand-placed confetti pieces that burst outward once when the
-   share box appears - purely decorative, no JS randomness needed. */
+   action bar appears - purely decorative, no JS randomness needed. */
 .confetti-burst {
 	position: absolute;
 	inset: 0;
@@ -966,7 +810,7 @@ input {
 
 .confetti-piece {
 	position: absolute;
-	top: 44px;
+	top: 35px;
 	left: 50%;
 	width: 7px;
 	height: 7px;
@@ -1030,65 +874,6 @@ input {
 		opacity: 0;
 		transform: translate(calc(-50% + var(--tx)), var(--ty)) rotate(var(--rot)) scale(1);
 	}
-}
-
-.whatsapp-link {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.4rem;
-	width: 100%;
-	padding: 0.65rem 1.3rem;
-	border-radius: var(--radius-pill);
-	background: #25d366;
-	color: #062013;
-	font-size: 0.88rem;
-	font-weight: 800;
-	text-decoration: none;
-	box-shadow: var(--shadow-sm), 0 6px 18px rgba(37, 211, 102, 0.3);
-	transition:
-		transform var(--duration-fast) var(--ease-bounce),
-		box-shadow var(--duration-fast) var(--ease-standard);
-}
-
-.whatsapp-link:hover {
-	transform: translateY(-2px);
-	box-shadow: var(--shadow-md), 0 10px 24px rgba(37, 211, 102, 0.35);
-}
-
-.whatsapp-link:active {
-	transform: scale(0.96);
-}
-
-.copy-button,
-.view-list-link {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.35rem;
-	padding: 0.5rem 0.8rem;
-	border: 1.5px solid var(--color-border-strong);
-	border-radius: var(--radius-pill);
-	background: var(--color-surface);
-	color: var(--color-text);
-	font-size: 0.82rem;
-	font-weight: 700;
-	text-decoration: none;
-	cursor: pointer;
-	transition:
-		transform var(--duration-fast) var(--ease-standard),
-		border-color var(--duration-fast) var(--ease-standard);
-}
-
-.copy-button:hover,
-.view-list-link:hover {
-	border-color: var(--color-accent);
-	color: var(--color-accent-strong);
-}
-
-.copy-button:active,
-.view-list-link:active {
-	transform: scale(0.96);
 }
 
 /* ---------- Shared list checkbox ---------- */

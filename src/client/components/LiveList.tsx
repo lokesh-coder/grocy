@@ -1,34 +1,46 @@
-import { useEffect, useState } from "react";
-import { Basket, Check, CheckCircle, Confetti, Eye, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
-import type { DraftItem, SessionState } from "../../shared/types";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Basket, Check } from "@phosphor-icons/react";
+import type { DraftItem } from "../../shared/types";
 
-// Categorizing and pricing happen later, on demand on the shared list page
-// (see the /organize route) - finalize itself is now just waiting for any
-// final catch-up extraction plus a single D1 write, so one status line
-// covers it instead of the multi-step cycling text this used to need.
-const FINALIZING_TEXT = "பட்டியலைச் சேமிக்கிறேன்…";
+const FINALIZING_TEXT = "பட்டியலை உருவாக்குகிறேன்…";
+
+// Same fun palette used for the loader dots, confetti, and category colors
+// elsewhere - cycling through it here (by each line's own fixed position,
+// not randomly) ties the notes feed back into the same visual identity
+// instead of introducing a new one.
+const NOTES_COLORS = [
+	"var(--color-fun-coral)",
+	"var(--color-fun-gold)",
+	"var(--color-fun-sage)",
+	"var(--color-fun-blue)",
+	"var(--color-fun-berry)",
+	"var(--color-fun-violet)",
+];
+
+// Teleprompter feel: the newest line is big, bold, and vivid; each older
+// line shrinks and fades a bit more, receding rather than just stacking
+// uniformly - `distance` is how many lines back from the newest this is.
+function noteLineStyle(originalIndex: number, distance: number): CSSProperties {
+	return {
+		"--line-color": NOTES_COLORS[originalIndex % NOTES_COLORS.length],
+		"--line-size": `${Math.max(0.8, 1.3 - distance * 0.14)}rem`,
+		"--line-opacity": Math.max(0.35, 1 - distance * 0.22),
+		"--line-weight": distance === 0 ? 800 : distance === 1 ? 650 : 550,
+	} as CSSProperties;
+}
 
 type Props = {
 	items: DraftItem[];
-	status: SessionState["status"];
-	isRecording: boolean;
+	segments: string[];
+	isFinalized: boolean;
 	onFinalize: () => Promise<{ slug: string }>;
-	onDelete: (itemId: string) => void;
 	onQuickAdd: (text: string) => void;
 };
 
 type FrequentItem = { name: string; quantity: string };
 
-export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQuickAdd }: Props) {
-	// Gated on isRecording too, not just status, so the placeholder disappears
-	// the instant you hit stop - a final catch-up extraction can still be
-	// running server-side after that, but you're no longer watching for a new
-	// item to land, so showing it then reads as stuck rather than in-progress.
-	const showSkeleton = isRecording && status === "extracting";
-	const [shareUrl, setShareUrl] = useState<string | null>(null);
+export function LiveList({ items, segments, isFinalized, onFinalize, onQuickAdd }: Props) {
 	const [finalizing, setFinalizing] = useState(false);
-	const [copied, setCopied] = useState(false);
-	const [activeItemId, setActiveItemId] = useState<string | null>(null);
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
 
 	useEffect(() => {
@@ -43,34 +55,18 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 	async function handleDone() {
 		setFinalizing(true);
 		try {
-			const { slug } = await onFinalize();
-			setShareUrl(`${window.location.origin}/list/${slug}`);
+			await onFinalize();
 		} finally {
 			setFinalizing(false);
 		}
 	}
 
-	async function handleShare() {
-		if (!shareUrl) return;
-		if (navigator.share) {
-			try {
-				await navigator.share({ title: "மளிகை பட்டியல்", url: shareUrl });
-				return;
-			} catch {
-				// user cancelled or share failed - fall through to clipboard
-			}
-		}
-		await navigator.clipboard.writeText(shareUrl);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
-	}
-
 	return (
 		<div className="list-pane">
-			{items.length === 0 && !showSkeleton && (
+			{items.length === 0 && segments.length === 0 && (
 				<div className="empty-state">
 					<Basket weight="duotone" size={56} />
-					<p>பேசும்போது இங்கே பொருட்கள் தோன்றும்.</p>
+					<p>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</p>
 					{frequentItems.length > 0 && (
 						<div className="quick-add-chips">
 							{frequentItems.map((item) => (
@@ -87,44 +83,34 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 				</div>
 			)}
 
-			{(items.length > 0 || showSkeleton) && (
+			{/* Raw, unprocessed segments - deliberately not styled like list items,
+			    so a rough or partial line doesn't read as broken. The real list only
+			    exists after Done runs the one actual extraction pass. */}
+			{items.length === 0 && segments.length > 0 && (
+				<div className="notes-feed">
+					{[...segments].reverse().map((segment, distance) => {
+						const originalIndex = segments.length - 1 - distance;
+						return (
+							<p key={originalIndex} className="notes-line" style={noteLineStyle(originalIndex, distance)}>
+								{segment}
+							</p>
+						);
+					})}
+				</div>
+			)}
+
+			{items.length > 0 && (
 				<ul className="draft-item-list">
-					{/* At the top, where new items land, so a slow pass reads as "working" not "stuck". */}
-					{showSkeleton && (
-						<li className="skeleton-item" aria-hidden="true">
-							<span className="skeleton-bar skeleton-bar-name" />
-							<span className="skeleton-bar skeleton-bar-qty" />
-						</li>
-					)}
-					{/* Extraction lists items oldest-first; reversed so whatever you just said is at the top. */}
 					{[...items].reverse().map((item) => (
-						<li
-							key={item.id}
-							className={activeItemId === item.id ? "active" : ""}
-							onClick={() => setActiveItemId((prev) => (prev === item.id ? null : item.id))}
-						>
+						<li key={item.id}>
 							<span className="item-name">{item.name}</span>
-							<span className="row-right">
-								<span className="item-qty">{item.quantity}</span>
-								{activeItemId === item.id && (
-									<button
-										className="delete-item-button"
-										aria-label={`${item.name} நீக்கு`}
-										onClick={(event) => {
-											event.stopPropagation();
-											onDelete(item.id);
-										}}
-									>
-										<X weight="bold" size={13} />
-									</button>
-								)}
-							</span>
+							<span className="item-qty">{item.quantity}</span>
 						</li>
 					))}
 				</ul>
 			)}
 
-			{items.length > 0 && !shareUrl && (
+			{segments.length > 0 && !isFinalized && (
 				<button className={`done-button ${finalizing ? "is-finalizing" : ""}`} disabled={finalizing} onClick={handleDone}>
 					{finalizing ? (
 						<>
@@ -141,54 +127,6 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 						</>
 					)}
 				</button>
-			)}
-
-			{shareUrl && (
-				<div className="share-box">
-					<span className="confetti-burst" aria-hidden="true">
-						<span className="confetti-piece" />
-						<span className="confetti-piece" />
-						<span className="confetti-piece" />
-						<span className="confetti-piece" />
-						<span className="confetti-piece" />
-						<span className="confetti-piece" />
-					</span>
-					<div className="share-badge">
-						<Confetti weight="duotone" size={28} />
-					</div>
-					<p className="share-title">பட்டியல் தயார்!</p>
-					<p className="share-subtitle">இப்போது பகிரலாம் அல்லது பார்க்கலாம்</p>
-
-					<div className="share-actions">
-						<a
-							className="whatsapp-link"
-							href={`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${shareUrl}`)}`}
-							target="_blank"
-							rel="noreferrer"
-						>
-							<WhatsappLogo weight="duotone" size={18} />
-							WhatsApp-இல் பகிரவும்
-						</a>
-						<div className="share-actions-row">
-							{/* No target="_blank" - a detached window has no back-stack in the installed PWA. */}
-							<a className="view-list-link" href={shareUrl}>
-								<Eye weight="bold" size={15} />
-								பட்டியலைப் பார்
-							</a>
-							<button className="copy-button" onClick={handleShare}>
-								{copied ? (
-									<>
-										<CheckCircle weight="fill" size={15} /> நகலெடுக்கப்பட்டது!
-									</>
-								) : (
-									<>
-										<LinkSimple weight="bold" size={15} /> இணைப்பை நகலெடு
-									</>
-								)}
-							</button>
-						</div>
-					</div>
-				</div>
 			)}
 		</div>
 	);
