@@ -10,10 +10,10 @@ export type ListItem = {
 	estimatedPrice: number | null;
 };
 
-// While dictating, items aren't categorized or priced yet - both are only
-// assigned once at "Done" (see categorizeItems/estimatePrices in extract.ts),
-// so the reasoning pass that runs on every live segment has less to decide
-// and the list doesn't reshuffle between category groups while still talking.
+// Items aren't categorized or priced until the shared list page's "Organize"
+// step is triggered on demand (see the /organize route and extract.ts) -
+// finalize() just saves them as-is, so Done stays fast and the reasoning
+// pass on every live segment has less to decide.
 export type DraftItem = Omit<ListItem, "category" | "estimatedPrice">;
 
 export type SessionState = {
@@ -34,4 +34,7 @@ export type SharedList = {
 	id: string;
 	createdAt: number;
 	items: SharedListItem[];
+	// False until the "Organize" step (categorize + estimate prices) has run
+	// - see the /api/list/:slug/organize route.
+	organized: boolean;
 };

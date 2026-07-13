@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ShoppingCart } from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { MagicWand, ShoppingCart } from "@phosphor-icons/react";
 import { CATEGORIES } from "../../shared/categories";
 import { categoryIcon } from "../lib/categoryIcons";
 import { categoryColor } from "../lib/categoryColors";
@@ -9,9 +9,17 @@ type Props = {
 	slug: string;
 };
 
+// Categorizing + pricing run on demand here, not automatically at finalize
+// (see the /organize route) - cycling through what's happening is more
+// honest than a static label for a step that takes a few seconds.
+const ORGANIZING_STEPS = ["பொருட்களை வகைப்படுத்துகிறேன்…", "விலை மதிப்பிடுகிறேன்…"];
+
 export function SharedListPage({ slug }: Props) {
 	const [list, setList] = useState<SharedList | null>(null);
 	const [notFound, setNotFound] = useState(false);
+	const [organizing, setOrganizing] = useState(false);
+	const [organizingStep, setOrganizingStep] = useState(0);
+	const organizingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -50,6 +58,21 @@ export function SharedListPage({ slug }: Props) {
 		return { total, pricedCount: priced.length, totalCount: list.items.length };
 	}, [list]);
 
+	async function handleOrganize() {
+		setOrganizing(true);
+		setOrganizingStep(0);
+		organizingIntervalRef.current = setInterval(() => {
+			setOrganizingStep((step) => (step + 1) % ORGANIZING_STEPS.length);
+		}, 1800);
+		try {
+			const res = await fetch(`/api/list/${slug}/organize`, { method: "POST" });
+			if (res.ok) setList(await res.json());
+		} finally {
+			setOrganizing(false);
+			if (organizingIntervalRef.current) clearInterval(organizingIntervalRef.current);
+		}
+	}
+
 	async function toggle(itemId: string, ticked: boolean) {
 		setList((prev) =>
 			prev ? { ...prev, items: prev.items.map((item) => (item.id === itemId ? { ...item, ticked } : item)) } : prev,
@@ -87,6 +110,26 @@ export function SharedListPage({ slug }: Props) {
 			</header>
 			<main className="main-area">
 				<div className="list-pane">
+					{!list.organized && (
+						<button className={`organize-button ${organizing ? "is-organizing" : ""}`} disabled={organizing} onClick={handleOrganize}>
+							{organizing ? (
+								<>
+									<span className="loader-dots" aria-hidden="true">
+										<span className="loader-dot" />
+										<span className="loader-dot" />
+										<span className="loader-dot" />
+									</span>
+									{ORGANIZING_STEPS[organizingStep]}
+								</>
+							) : (
+								<>
+									<MagicWand weight="duotone" size={17} />
+									வகைப்படுத்தி விலை காட்டு
+								</>
+							)}
+						</button>
+					)}
+
 					{priceSummary && (
 						<p className="price-summary">
 							மதிப்பிடப்பட்ட மொத்தம்: ₹{Math.round(priceSummary.total)}
@@ -94,39 +137,63 @@ export function SharedListPage({ slug }: Props) {
 								` (${priceSummary.pricedCount}/${priceSummary.totalCount} பொருட்களுக்கு)`}
 						</p>
 					)}
-					{grouped.map((group) => {
-						const Icon = categoryIcon(group.category.id);
-						return (
-							<section
-								key={group.category.id}
-								className="category-group"
-								style={{ "--cat-color": categoryColor(group.category.id) } as CSSProperties}
-							>
-								<h3>
-									<Icon weight="duotone" size={16} />
-									{group.category.ta}
-								</h3>
-								<ul>
-									{group.items.map((item) => (
-										<li key={item.id} className={item.ticked ? "ticked" : ""}>
-											<label>
-												<input
-													type="checkbox"
-													className="check-input"
-													checked={item.ticked}
-													onChange={(event) => toggle(item.id, event.target.checked)}
-												/>
-												<span className="check-box" aria-hidden="true" />
-												<span className="item-name">{item.name}</span>
-												<span className="item-qty">
-													{item.quantity}
-													{item.estimatedPrice != null && (
-														<span className="item-price"> · ₹{Math.round(item.estimatedPrice)}</span>
-													)}
-												</span>
-											</label>
-										</li>
-									))}
+
+					{!list.organized && (
+						<section className="category-group">
+							<ul>
+								{list.items.map((item) => (
+									<li key={item.id} className={item.ticked ? "ticked" : ""}>
+										<label>
+											<input
+												type="checkbox"
+												className="check-input"
+												checked={item.ticked}
+												onChange={(event) => toggle(item.id, event.target.checked)}
+											/>
+											<span className="check-box" aria-hidden="true" />
+											<span className="item-name">{item.name}</span>
+											<span className="item-qty">{item.quantity}</span>
+										</label>
+									</li>
+								))}
+							</ul>
+						</section>
+					)}
+
+					{list.organized &&
+						grouped.map((group) => {
+							const Icon = categoryIcon(group.category.id);
+							return (
+								<section
+									key={group.category.id}
+									className="category-group"
+									style={{ "--cat-color": categoryColor(group.category.id) } as CSSProperties}
+								>
+									<h3>
+										<Icon weight="duotone" size={16} />
+										{group.category.ta}
+									</h3>
+									<ul>
+										{group.items.map((item) => (
+											<li key={item.id} className={item.ticked ? "ticked" : ""}>
+												<label>
+													<input
+														type="checkbox"
+														className="check-input"
+														checked={item.ticked}
+														onChange={(event) => toggle(item.id, event.target.checked)}
+													/>
+													<span className="check-box" aria-hidden="true" />
+													<span className="item-name">{item.name}</span>
+													<span className="item-qty">
+														{item.quantity}
+														{item.estimatedPrice != null && (
+															<span className="item-price"> · ₹{Math.round(item.estimatedPrice)}</span>
+														)}
+													</span>
+												</label>
+											</li>
+										))}
 								</ul>
 							</section>
 						);

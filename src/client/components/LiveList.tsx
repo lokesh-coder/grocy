@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Basket, Check, CheckCircle, Confetti, Eye, LinkSimple, WhatsappLogo, X } from "@phosphor-icons/react";
 import type { DraftItem, SessionState } from "../../shared/types";
 
-// Finalizing now does two real API calls in sequence (categorize, then
-// estimate prices), so it's a few seconds longer than it used to be -
-// cycling through what's actually happening is more honest than a single
-// static "wait" label, and gives the eye something to track meanwhile.
-const FINALIZING_STEPS = ["பட்டியலை ஒழுங்குபடுத்துகிறேன்…", "விலை மதிப்பிடுகிறேன்…"];
+// Categorizing and pricing happen later, on demand on the shared list page
+// (see the /organize route) - finalize itself is now just waiting for any
+// final catch-up extraction plus a single D1 write, so one status line
+// covers it instead of the multi-step cycling text this used to need.
+const FINALIZING_TEXT = "பட்டியலைச் சேமிக்கிறேன்…";
 
 type Props = {
 	items: DraftItem[];
@@ -27,11 +27,9 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 	const showSkeleton = isRecording && status === "extracting";
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [finalizing, setFinalizing] = useState(false);
-	const [finalizingStep, setFinalizingStep] = useState(0);
 	const [copied, setCopied] = useState(false);
 	const [activeItemId, setActiveItemId] = useState<string | null>(null);
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
-	const finalizingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	useEffect(() => {
 		fetch("/api/frequent-items")
@@ -44,16 +42,11 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 
 	async function handleDone() {
 		setFinalizing(true);
-		setFinalizingStep(0);
-		finalizingIntervalRef.current = setInterval(() => {
-			setFinalizingStep((step) => (step + 1) % FINALIZING_STEPS.length);
-		}, 1800);
 		try {
 			const { slug } = await onFinalize();
 			setShareUrl(`${window.location.origin}/list/${slug}`);
 		} finally {
 			setFinalizing(false);
-			if (finalizingIntervalRef.current) clearInterval(finalizingIntervalRef.current);
 		}
 	}
 
@@ -140,7 +133,7 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 								<span className="loader-dot" />
 								<span className="loader-dot" />
 							</span>
-							{FINALIZING_STEPS[finalizingStep]}
+							{FINALIZING_TEXT}
 						</>
 					) : (
 						<>
@@ -177,7 +170,8 @@ export function LiveList({ items, status, isRecording, onFinalize, onDelete, onQ
 							WhatsApp-இல் பகிரவும்
 						</a>
 						<div className="share-actions-row">
-							<a className="view-list-link" href={shareUrl} target="_blank" rel="noreferrer">
+							{/* No target="_blank" - a detached window has no back-stack in the installed PWA. */}
+							<a className="view-list-link" href={shareUrl}>
 								<Eye weight="bold" size={15} />
 								பட்டியலைப் பார்
 							</a>

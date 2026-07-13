@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAgent } from "agents/react";
 import { ShoppingCart, Plus } from "@phosphor-icons/react";
-import { Recorder } from "./components/Recorder";
+import { Recorder, type RecorderHandle } from "./components/Recorder";
 import { LiveList } from "./components/LiveList";
 import { SharedListPage } from "./components/SharedListPage";
 import type { SessionState } from "../shared/types";
@@ -29,6 +29,7 @@ function startNewList() {
 function RecordingView() {
 	const [sessionId] = useState(getOrCreateSessionId);
 	const [isRecording, setIsRecording] = useState(false);
+	const recorderRef = useRef<RecorderHandle>(null);
 
 	const agent = useAgent<SessionState>({
 		agent: "ListSessionAgent",
@@ -64,6 +65,9 @@ function RecordingView() {
 					status={state?.status ?? "idle"}
 					isRecording={isRecording}
 					onFinalize={async () => {
+						// Stop the mic first, in case Done is clicked mid-recording -
+						// otherwise it keeps listening even after the list is finalized.
+						recorderRef.current?.stop();
 						return await agent.stub.finalize();
 					}}
 					onDelete={(itemId) => {
@@ -74,6 +78,7 @@ function RecordingView() {
 					}}
 				/>
 				<Recorder
+					ref={recorderRef}
 					transcript={state?.transcript ?? ""}
 					status={state?.status ?? "idle"}
 					onSegment={(text) => {

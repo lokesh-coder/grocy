@@ -1,8 +1,11 @@
 import { nanoid } from "nanoid";
 import type { CategoryId } from "../../shared/categories";
-import type { ListItem, SharedList } from "../../shared/types";
+import type { DraftItem, ListItem, SharedList } from "../../shared/types";
 
-export async function finalizeList(db: D1Database, transcript: string, items: ListItem[]): Promise<string> {
+// Items aren't categorized/priced yet at finalize time (see the "Organize"
+// step below), so they're written with a placeholder category and no price
+// - the shared list page fills those in on demand.
+export async function finalizeList(db: D1Database, transcript: string, items: DraftItem[]): Promise<string> {
 	const slug = nanoid(10);
 	const now = Date.now();
 
@@ -11,9 +14,9 @@ export async function finalizeList(db: D1Database, transcript: string, items: Li
 		...items.map((item, index) =>
 			db
 				.prepare(
-					"INSERT INTO items (id, list_id, name, quantity, category, ticked, sort_order, estimated_price) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+					"INSERT INTO items (id, list_id, name, quantity, category, ticked, sort_order, estimated_price) VALUES (?, ?, ?, ?, 'other', 0, ?, NULL)",
 				)
-				.bind(nanoid(8), slug, item.name, item.quantity, item.category, index, item.estimatedPrice),
+				.bind(nanoid(8), slug, item.name, item.quantity, index),
 		),
 	];
 
@@ -21,7 +24,21 @@ export async function finalizeList(db: D1Database, transcript: string, items: Li
 	return slug;
 }
 
-type ListRow = { id: string; created_at: number };
+// Writes back the results of the on-demand "Organize" step (categorize +
+// estimate prices) and marks the list as organized.
+export async function saveOrganizedItems(db: D1Database, slug: string, items: ListItem[]): Promise<void> {
+	const statements = [
+		...items.map((item) =>
+			db
+				.prepare("UPDATE items SET category = ?, estimated_price = ? WHERE id = ? AND list_id = ?")
+				.bind(item.category, item.estimatedPrice, item.id, slug),
+		),
+		db.prepare("UPDATE lists SET organized = 1 WHERE id = ?").bind(slug),
+	];
+	await db.batch(statements);
+}
+
+type ListRow = { id: string; created_at: number; organized: number };
 type ItemRow = {
 	id: string;
 	name: string;
@@ -33,7 +50,10 @@ type ItemRow = {
 };
 
 export async function getList(db: D1Database, slug: string): Promise<SharedList | null> {
-	const list = await db.prepare("SELECT id, created_at FROM lists WHERE id = ?").bind(slug).first<ListRow>();
+	const list = await db
+		.prepare("SELECT id, created_at, organized FROM lists WHERE id = ?")
+		.bind(slug)
+		.first<ListRow>();
 	if (!list) return null;
 
 	const { results } = await db
@@ -46,6 +66,7 @@ export async function getList(db: D1Database, slug: string): Promise<SharedList 
 	return {
 		id: list.id,
 		createdAt: list.created_at,
+		organized: list.organized === 1,
 		items: results.map((row) => ({
 			id: row.id,
 			name: row.name,

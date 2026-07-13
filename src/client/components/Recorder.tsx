@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Microphone, Stop } from "@phosphor-icons/react";
 import {
 	isSpeechRecognitionSupported,
@@ -14,7 +14,14 @@ type Props = {
 	onRecordingChange?: (isRecording: boolean) => void;
 };
 
-export function Recorder({ transcript, status, onSegment, onRecordingChange }: Props) {
+export type RecorderHandle = {
+	stop: () => void;
+};
+
+export const Recorder = forwardRef<RecorderHandle, Props>(function Recorder(
+	{ transcript, status, onSegment, onRecordingChange },
+	ref,
+) {
 	const [isRecording, setIsRecording] = useState(false);
 
 	useEffect(() => {
@@ -59,6 +66,9 @@ export function Recorder({ transcript, status, onSegment, onRecordingChange }: P
 		setIsRecording(false);
 		setInterimText("");
 	}, []);
+
+	// Lets App stop the mic before finalizing, in case Done is clicked without pressing stop first.
+	useImperativeHandle(ref, () => ({ stop }), [stop]);
 
 	// Stays visible even after the mic visually stops, since the server may
 	// still be extracting the last thing you said - reverting to "press mic
@@ -112,7 +122,7 @@ export function Recorder({ transcript, status, onSegment, onRecordingChange }: P
 			</div>
 		</div>
 	);
-}
+});
 
 function statusText(isRecording: boolean, status: SessionState["status"]): string {
 	if (status === "extracting") return "பட்டியலை புதுப்பிக்கிறேன்…";
