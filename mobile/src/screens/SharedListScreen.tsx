@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SolarIcon } from "react-native-solar-icons";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
+import { categoryIcon } from "../lib/categoryIcons";
 import { deleteItem, getList, organizeList, setItemTicked } from "../lib/api";
-import { colors, fontFamily, radius } from "../theme/tokens";
+import { AnimatedCheckbox } from "../components/AnimatedCheckbox";
+import { GradientButton } from "../components/GradientButton";
+import { LoaderDots } from "../components/LoaderDots";
+import { PopIn } from "../components/PopIn";
+import { colors, fontFamily, radius, spring } from "../theme/tokens";
 import type { SharedList, SharedListItem } from "../shared/types";
 
 const ORGANIZING_TEXT = "வகைப்படுத்தி விலை மதிப்பிடுகிறேன்…";
@@ -90,9 +97,19 @@ export function SharedListScreen({ slug }: Props) {
 			contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
 		>
 			{!list.organized && (
-				<Pressable style={[styles.organizeButton, organizing && styles.disabled]} disabled={organizing} onPress={handleOrganize}>
-					<Text style={styles.organizeButtonText}>{organizing ? ORGANIZING_TEXT : "வகைப்படுத்தி விலை காட்டு"}</Text>
-				</Pressable>
+				<GradientButton onPress={handleOrganize} disabled={organizing}>
+					{organizing ? (
+						<>
+							<LoaderDots variant="onAccent" />
+							<Text style={styles.organizeButtonText}>{ORGANIZING_TEXT}</Text>
+						</>
+					) : (
+						<>
+							<SolarIcon name="MagicStick3" type="bold" size={17} color={colors.onAccent} />
+							<Text style={styles.organizeButtonText}>வகைப்படுத்தி விலை காட்டு</Text>
+						</>
+					)}
+				</GradientButton>
 			)}
 
 			{priceSummary && (
@@ -104,20 +121,29 @@ export function SharedListScreen({ slug }: Props) {
 
 			{!list.organized && (
 				<View style={styles.group}>
-					{list.items.map((item) => (
-						<ItemRow key={item.id} item={item} onToggle={toggle} onDelete={handleDelete} />
+					{list.items.map((item, i) => (
+						<PopIn key={item.id} delay={i * 30}>
+							<ItemRow item={item} onToggle={toggle} onDelete={handleDelete} />
+						</PopIn>
 					))}
 				</View>
 			)}
 
 			{list.organized &&
-				grouped.map((group) => (
-					<View key={group.category.id} style={styles.group}>
-						<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
-						{group.items.map((item) => (
-							<ItemRow key={item.id} item={item} onToggle={toggle} onDelete={handleDelete} showPrice />
-						))}
-					</View>
+				grouped.map((group, gi) => (
+					<PopIn key={group.category.id} delay={gi * 60}>
+						<View style={styles.group}>
+							<View style={styles.groupHeader}>
+								<SolarIcon name={categoryIcon(group.category.id)} type="linear" size={14} color={categoryColor(group.category.id)} />
+								<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
+							</View>
+							{group.items.map((item, i) => (
+								<PopIn key={item.id} delay={i * 30}>
+									<ItemRow item={item} onToggle={toggle} onDelete={handleDelete} showPrice color={categoryColor(group.category.id)} />
+								</PopIn>
+							))}
+						</View>
+					</PopIn>
 				))}
 		</ScrollView>
 	);
@@ -128,28 +154,56 @@ function ItemRow({
 	onToggle,
 	onDelete,
 	showPrice,
+	color,
 }: {
 	item: SharedListItem;
 	onToggle: (id: string, ticked: boolean) => void;
 	onDelete: (id: string) => void;
 	showPrice?: boolean;
+	color?: string;
 }) {
 	return (
 		<View style={styles.itemRow}>
-			<Pressable style={styles.checkboxRow} onPress={() => onToggle(item.id, !item.ticked)}>
-				<View style={[styles.checkbox, item.ticked && styles.checkboxChecked]} />
-				<View style={styles.itemTextCol}>
-					<Text style={[styles.itemName, item.ticked && styles.itemTicked]}>{item.name}</Text>
-					<Text style={styles.itemQty}>
-						{item.quantity}
-						{showPrice && item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
-					</Text>
-				</View>
+			<AnimatedCheckbox checked={item.ticked} onToggle={() => onToggle(item.id, !item.ticked)} color={color} />
+			<Pressable style={styles.itemTextCol} onPress={() => onToggle(item.id, !item.ticked)}>
+				<Text style={[styles.itemName, item.ticked && styles.itemTicked]}>{item.name}</Text>
+				<Text style={styles.itemQty}>
+					{item.quantity}
+					{showPrice && item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
+				</Text>
 			</Pressable>
-			<Pressable style={styles.deleteButton} onPress={() => onDelete(item.id)}>
-				<Text style={styles.deleteButtonText}>×</Text>
-			</Pressable>
+			<DeleteButton onPress={() => onDelete(item.id)} />
 		</View>
+	);
+}
+
+// Spring-rotates 90deg on press before the item removes, matching the web
+// app's `.delete-item-button:active { transform: rotate(90deg) scale(0.8) }`.
+function DeleteButton({ onPress }: { onPress: () => void }) {
+	const rotation = useSharedValue(0);
+	const scale = useSharedValue(1);
+
+	const animatedStyle = useAnimatedStyle(() => ({
+		transform: [{ rotate: `${rotation.value}deg` }, { scale: scale.value }],
+	}));
+
+	return (
+		<Pressable
+			style={styles.deleteButton}
+			onPressIn={() => {
+				rotation.value = withSpring(90, spring);
+				scale.value = withSpring(0.8, spring);
+			}}
+			onPressOut={() => {
+				rotation.value = withSpring(0, spring);
+				scale.value = withSpring(1, spring);
+			}}
+			onPress={onPress}
+		>
+			<Animated.View style={animatedStyle}>
+				<SolarIcon name="TrashBinMinimalistic" type="linear" size={18} color={colors.danger} />
+			</Animated.View>
+		</Pressable>
 	);
 }
 
@@ -158,30 +212,32 @@ const styles = StyleSheet.create({
 	content: { padding: 20, gap: 16 },
 	centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
 	hint: { color: colors.textMuted, fontFamily: fontFamily.medium },
-	organizeButton: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 12, alignItems: "center" },
-	disabled: { opacity: 0.6 },
-	organizeButtonText: { color: colors.onAccent, fontFamily: fontFamily.bold },
-	priceSummary: { fontSize: 14, fontFamily: fontFamily.bold, color: colors.text, backgroundColor: colors.accentSoft, padding: 12, borderRadius: radius.sm },
+	organizeButtonText: { color: colors.onAccent, fontFamily: fontFamily.bold, fontSize: 15 },
+	priceSummary: {
+		fontSize: 14,
+		fontFamily: fontFamily.bold,
+		color: colors.text,
+		backgroundColor: colors.accentSoft,
+		padding: 12,
+		borderRadius: radius.sm,
+	},
 	group: { gap: 8 },
-	groupTitle: { fontSize: 12, fontFamily: fontFamily.extrabold, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 2 },
+	groupHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+	groupTitle: { fontSize: 12, fontFamily: fontFamily.extrabold, letterSpacing: 0.5, textTransform: "uppercase" },
 	itemRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 8,
+		gap: 12,
 		backgroundColor: colors.surface,
 		borderWidth: 1,
 		borderColor: colors.border,
 		borderRadius: radius.sm,
-		paddingHorizontal: 10,
-		paddingVertical: 4,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
 	},
-	checkboxRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
-	checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: colors.borderStrong },
-	checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
 	itemTextCol: { flex: 1 },
 	itemName: { fontSize: 15, fontFamily: fontFamily.medium, color: colors.text },
 	itemTicked: { textDecorationLine: "line-through", color: colors.textMuted },
 	itemQty: { fontSize: 12, fontFamily: fontFamily.medium, color: colors.textMuted },
 	deleteButton: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-	deleteButtonText: { fontSize: 18, color: colors.danger },
 });
