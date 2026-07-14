@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
 import { deleteItem, getList, organizeList, setItemTicked } from "../lib/api";
+import { colors, fontFamily, radius } from "../theme/tokens";
 import type { SharedList, SharedListItem } from "../shared/types";
 
 const ORGANIZING_TEXT = "வகைப்படுத்தி விலை மதிப்பிடுகிறேன்…";
@@ -12,6 +14,7 @@ type Props = {
 };
 
 export function SharedListScreen({ slug }: Props) {
+	const insets = useSafeAreaInsets();
 	const [list, setList] = useState<SharedList | null>(null);
 	const [notFound, setNotFound] = useState(false);
 	const [organizing, setOrganizing] = useState(false);
@@ -82,7 +85,10 @@ export function SharedListScreen({ slug }: Props) {
 	}
 
 	return (
-		<ScrollView style={styles.container} contentContainerStyle={styles.content}>
+		<ScrollView
+			style={styles.container}
+			contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+		>
 			{!list.organized && (
 				<Pressable style={[styles.organizeButton, organizing && styles.disabled]} disabled={organizing} onPress={handleOrganize}>
 					<Text style={styles.organizeButtonText}>{organizing ? ORGANIZING_TEXT : "வகைப்படுத்தி விலை காட்டு"}</Text>
@@ -148,24 +154,34 @@ function ItemRow({
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, backgroundColor: "#fff" },
-	content: { padding: 20, paddingTop: 60, gap: 16 },
-	centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
-	hint: { color: "#8f8574" },
-	organizeButton: { backgroundColor: "#111", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+	container: { flex: 1, backgroundColor: colors.bg },
+	content: { padding: 20, gap: 16 },
+	centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+	hint: { color: colors.textMuted, fontFamily: fontFamily.medium },
+	organizeButton: { backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 12, alignItems: "center" },
 	disabled: { opacity: 0.6 },
-	organizeButtonText: { color: "#fff", fontWeight: "700" },
-	priceSummary: { fontSize: 14, color: "#444" },
+	organizeButtonText: { color: colors.onAccent, fontFamily: fontFamily.bold },
+	priceSummary: { fontSize: 14, fontFamily: fontFamily.bold, color: colors.text, backgroundColor: colors.accentSoft, padding: 12, borderRadius: radius.sm },
 	group: { gap: 8 },
-	groupTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
-	itemRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-	checkboxRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
-	checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: "#ccc" },
-	checkboxChecked: { backgroundColor: "#6e9b72", borderColor: "#6e9b72" },
+	groupTitle: { fontSize: 12, fontFamily: fontFamily.extrabold, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 2 },
+	itemRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+		backgroundColor: colors.surface,
+		borderWidth: 1,
+		borderColor: colors.border,
+		borderRadius: radius.sm,
+		paddingHorizontal: 10,
+		paddingVertical: 4,
+	},
+	checkboxRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
+	checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: colors.borderStrong },
+	checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
 	itemTextCol: { flex: 1 },
-	itemName: { fontSize: 16, color: "#111" },
-	itemTicked: { textDecorationLine: "line-through", color: "#999" },
-	itemQty: { fontSize: 13, color: "#888" },
+	itemName: { fontSize: 15, fontFamily: fontFamily.medium, color: colors.text },
+	itemTicked: { textDecorationLine: "line-through", color: colors.textMuted },
+	itemQty: { fontSize: 12, fontFamily: fontFamily.medium, color: colors.textMuted },
 	deleteButton: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-	deleteButtonText: { fontSize: 18, color: "#c0392b" },
+	deleteButtonText: { fontSize: 18, color: colors.danger },
 });

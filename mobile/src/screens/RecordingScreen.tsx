@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Linking, Pressable, Share, StatusBar, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,12 +9,14 @@ import { API_BASE_URL } from "../lib/config";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
+import { colors, fontFamily, radius } from "../theme/tokens";
 import type { RootStackParamList } from "../../App";
 
 const FINALIZING_TEXT = "பட்டியலை உருவாக்குகிறேன்…";
 
 export function RecordingScreen() {
 	const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Recording">>();
+	const insets = useSafeAreaInsets();
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [segments, setSegments] = useState<string[]>([]);
 	const [listening, setListening] = useState(false);
@@ -97,7 +100,7 @@ export function RecordingScreen() {
 
 	if (finalizedSlug) {
 		return (
-			<View style={styles.container}>
+			<View style={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 16 }]}>
 				<StatusBar barStyle="dark-content" />
 				<Text style={styles.title}>முடிந்தது!</Text>
 				<View style={styles.shareActions}>
@@ -119,7 +122,7 @@ export function RecordingScreen() {
 	}
 
 	return (
-		<View style={styles.container}>
+		<View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 12 }]}>
 			<StatusBar barStyle="dark-content" />
 			<Text style={styles.title}>மளிகை பட்டியல்</Text>
 			<Text style={styles.subtitle}>{connected ? "இணைக்கப்பட்டது" : "இணைக்கிறது…"}</Text>
@@ -152,28 +155,31 @@ export function RecordingScreen() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#fff",
-		paddingTop: 60,
+		backgroundColor: colors.bg,
 		paddingHorizontal: 20,
 		alignItems: "center",
 	},
 	title: {
 		fontSize: 20,
-		fontWeight: "700",
+		fontFamily: fontFamily.extrabold,
+		color: colors.text,
 	},
 	subtitle: {
 		fontSize: 13,
-		color: "#888",
+		fontFamily: fontFamily.semibold,
+		color: colors.textMuted,
 		marginTop: 4,
 		marginBottom: 24,
 	},
 	error: {
-		color: "#c0392b",
+		color: colors.danger,
+		fontFamily: fontFamily.medium,
 		marginTop: 12,
 		textAlign: "center",
 	},
 	lastListLink: {
-		color: "#2563eb",
+		color: colors.textMuted,
+		fontFamily: fontFamily.semibold,
 		marginTop: 12,
 	},
 	controls: {
@@ -184,22 +190,22 @@ const styles = StyleSheet.create({
 		width: 88,
 		height: 88,
 		borderRadius: 44,
-		backgroundColor: "#2563eb",
+		backgroundColor: colors.accent,
 		alignItems: "center",
 		justifyContent: "center",
 	},
 	micButtonActive: {
-		backgroundColor: "#dc2626",
+		backgroundColor: colors.danger,
 	},
 	micButtonText: {
-		color: "#fff",
-		fontWeight: "700",
+		color: colors.onAccent,
+		fontFamily: fontFamily.bold,
 		fontSize: 15,
 	},
 	doneButton: {
 		width: "100%",
-		backgroundColor: "#111",
-		borderRadius: 10,
+		backgroundColor: colors.accent,
+		borderRadius: radius.pill,
 		paddingVertical: 14,
 		alignItems: "center",
 		marginBottom: 24,
@@ -208,8 +214,8 @@ const styles = StyleSheet.create({
 		opacity: 0.6,
 	},
 	doneButtonText: {
-		color: "#fff",
-		fontWeight: "700",
+		color: colors.onAccent,
+		fontFamily: fontFamily.bold,
 		fontSize: 15,
 	},
 	shareActions: {
@@ -218,17 +224,17 @@ const styles = StyleSheet.create({
 		marginTop: 24,
 	},
 	shareButton: {
-		backgroundColor: "#111",
-		borderRadius: 10,
+		backgroundColor: colors.accent,
+		borderRadius: radius.pill,
 		paddingVertical: 14,
 		alignItems: "center",
 	},
 	whatsappButton: {
-		backgroundColor: "#25d366",
+		backgroundColor: colors.whatsapp,
 	},
 	shareButtonText: {
-		color: "#fff",
-		fontWeight: "700",
+		color: colors.onAccent,
+		fontFamily: fontFamily.bold,
 		fontSize: 15,
 	},
 });

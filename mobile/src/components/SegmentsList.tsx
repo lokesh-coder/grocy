@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { colors, fontFamily, radius } from "../theme/tokens";
 
 type Props = {
 	segments: string[];
@@ -24,16 +25,18 @@ const styles = StyleSheet.create({
 		flex: 1,
 		width: "100%",
 		borderWidth: 1,
-		borderColor: "#e5e5e5",
-		borderRadius: 12,
+		borderColor: colors.border,
+		borderRadius: radius.md,
+		backgroundColor: colors.surface,
 		padding: 16,
 	},
 	content: {
 		gap: 10,
 	},
 	placeholder: {
-		color: "#bbb",
-		fontSize: 15,
+		color: colors.textMuted,
+		fontFamily: fontFamily.semibold,
+		fontSize: 14,
 		textAlign: "center",
 		marginTop: 24,
 	},
@@ -41,7 +44,8 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 	},
 	segment: {
-		fontSize: 18,
-		color: "#111",
+		fontSize: 17,
+		fontFamily: fontFamily.medium,
+		color: colors.text,
 	},
 });

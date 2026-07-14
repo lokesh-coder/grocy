@@ -39,7 +39,9 @@
             "com.google.android.googlequicksearchbox"
           ]
         }
-      ]
+      ],
+      "expo-font",
+      "expo-splash-screen"
     ]
   }
 }
