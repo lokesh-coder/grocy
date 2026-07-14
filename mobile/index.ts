@@ -1,3 +1,7 @@
+// Must be the very first import - agents/partysocket call crypto.randomUUID()
+// with no fallback, and Hermes has no Web Crypto without this polyfill.
+import 'react-native-get-random-values';
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

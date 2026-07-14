@@ -4,6 +4,53 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
+import { useAgent } from "agents/react";
+import { AccessAwareWebSocket, API_HOST } from "./src/lib/config";
+import type { SessionState } from "./src/shared/types";
+
+// Phase 0 smoke test only - proves the agents SDK's WebSocket client can
+// reach the ListSessionAgent Durable Object through Cloudflare Access from
+// RN. Replaced by the real RecordingScreen in Phase 1. A fixed session name
+// (not persisted/rotated) is fine here since this is throwaway.
+const SMOKE_TEST_SESSION = "mobile-phase0-smoke-test";
+
+function ConnectionSmokeTest() {
+  const agent = useAgent<SessionState>({
+    agent: "ListSessionAgent",
+    name: SMOKE_TEST_SESSION,
+    host: API_HOST,
+    // Injects Access auth headers onto the WS upgrade - see config.ts.
+    WebSocket: AccessAwareWebSocket,
+  });
+
+  return (
+    <View style={smokeStyles.box}>
+      <Text style={smokeStyles.label}>WS status: {agent.readyState === WebSocket.OPEN ? "connected" : "connecting…"}</Text>
+      <Text style={smokeStyles.label}>transcript: {agent.state?.transcript || "(empty)"}</Text>
+      <Pressable
+        style={smokeStyles.button}
+        onPress={() => agent.stub.addTranscriptSegment(`smoke test ${new Date().toLocaleTimeString()}`)}
+      >
+        <Text style={smokeStyles.buttonText}>Send test segment</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const smokeStyles = StyleSheet.create({
+  box: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 6,
+  },
+  label: { fontSize: 13, color: "#444" },
+  button: { backgroundColor: "#111", borderRadius: 8, paddingVertical: 8, alignItems: "center", marginTop: 4 },
+  buttonText: { color: "#fff", fontWeight: "600" },
+});
 
 // Spike: only exists to compare native Android speech recognition quality
 // against the current PWA's browser SpeechRecognition, side by side on the
@@ -61,6 +108,8 @@ export default function App() {
       <StatusBar barStyle="dark-content" />
       <Text style={styles.title}>Speech Recognition Spike</Text>
       <Text style={styles.subtitle}>Native Android · ta-IN · continuous</Text>
+
+      <ConnectionSmokeTest />
 
       <ScrollView style={styles.transcriptBox} contentContainerStyle={styles.transcriptContent}>
         {segments.length === 0 && !interim && <Text style={styles.placeholder}>Segments will appear here…</Text>}

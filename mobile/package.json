@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "agents": "^0.17.4",
     "expo": "~57.0.4",
+    "expo-linking": "~57.0.2",
     "expo-speech-recognition": "^56.0.1",
     "expo-status-bar": "~57.0.0",
     "react": "19.2.3",
-    "react-native": "0.86.0"
+    "react-native": "0.86.0",
+    "react-native-get-random-values": "~1.11.0"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
