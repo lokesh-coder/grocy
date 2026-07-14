@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SolarIcon } from "react-native-solar-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SegmentsList } from "../components/SegmentsList";
 import { MicButton } from "../components/MicButton";
-import { GradientButton } from "../components/GradientButton";
 import { LoaderDots } from "../components/LoaderDots";
 import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
@@ -239,23 +239,36 @@ export function RecordingScreen() {
 
 			{micError && <Text style={styles.error}>{micError}</Text>}
 
-			<View style={styles.controlsRow}>
-				<MicButton recording={listening} onPress={toggleListening} size={64} />
+			{/* Mic is the one fixed anchor on this screen - it must never move,
+			    so it's centered independently of everything else, not sharing a
+			    flex row with Done (which would re-center the whole row and make
+			    mic visibly jump sideways the moment Done appears). Done is a
+			    separate, absolutely-positioned, secondary-weight control that
+			    slots in beside it without ever touching mic's position. */}
+			<View style={styles.controlsArea}>
+				<MicButton recording={listening} onPress={toggleListening} size={72} />
 				{segments.length > 0 && (
-					<GradientButton onPress={handleDone} fullWidth={false} style={styles.doneCompact}>
-						<SolarIcon name="CheckCircle" type="bold" size={16} color={colors.onAccent} />
-						<Text style={styles.doneButtonText}>முடிந்தது</Text>
-					</GradientButton>
+					<PopIn style={styles.doneSlot}>
+						<PressableScale style={styles.doneButton} onPress={handleDone}>
+							<SolarIcon name="CheckCircle" type="bold" size={22} color={colors.accent} />
+						</PressableScale>
+					</PopIn>
 				)}
 			</View>
 		</View>
 	);
 }
 
+// Same rounded-square shape family as every other control, but a soft
+// gradient fill + real shadow instead of a flat white-and-border box - a
+// bare bordered square reads as an unstyled placeholder, not a designed
+// element with the same visual quality as the primary buttons.
 function ShareIconButton({ action, onPress }: { action: { icon: string; label: string }; onPress: () => void }) {
 	return (
-		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButton}>
-			<SolarIcon name={action.icon} type="linear" size={20} color={colors.accent} />
+		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButtonWrapper}>
+			<LinearGradient colors={[colors.surface, colors.accentSoft]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.iconButton}>
+				<SolarIcon name={action.icon} type="linear" size={21} color={colors.accentStrong} />
+			</LinearGradient>
 		</PressableScale>
 	);
 }
@@ -366,21 +379,30 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 		textAlign: "center",
 	},
-	controlsRow: {
-		flexDirection: "row",
+	// position:'relative' + alignItems/justifyContent:'center' centers mic
+	// independently of anything else in here - doneSlot is taken out of flow
+	// entirely (position:'absolute'), so it can never shift mic's position.
+	controlsArea: {
+		position: "relative",
+		width: "100%",
+		height: 104,
 		alignItems: "center",
 		justifyContent: "center",
-		gap: 10,
-		paddingVertical: 8,
-		width: "100%",
 	},
-	doneCompact: {
-		flexShrink: 1,
+	doneSlot: {
+		position: "absolute",
+		top: 0,
+		bottom: 0,
+		right: 12,
+		justifyContent: "center",
 	},
-	doneButtonText: {
-		color: colors.onAccent,
-		fontFamily: fontFamily.bold,
-		fontSize: 13,
+	doneButton: {
+		width: 48,
+		height: 48,
+		borderRadius: radius.sm,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: colors.accentSoft,
 	},
 	finalizingDots: {
 		transform: [{ scale: 2.2 }],
@@ -438,15 +460,15 @@ const styles = StyleSheet.create({
 		paddingVertical: 10,
 		position: "relative",
 	},
+	iconButtonWrapper: {
+		borderRadius: radius.sm,
+		...shadow.md,
+	},
 	iconButton: {
 		width: 52,
 		height: 52,
 		borderRadius: radius.sm,
 		alignItems: "center",
 		justifyContent: "center",
-		backgroundColor: colors.surface,
-		borderWidth: 1.2,
-		borderColor: colors.borderStrong,
-		...shadow.sm,
 	},
 });
