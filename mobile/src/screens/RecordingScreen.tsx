@@ -17,16 +17,19 @@ import { getFrequentItems } from "../lib/api";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
-import { colors, fontFamily, shadow, withOpacity } from "../theme/tokens";
+import { colors, fontFamily, radius, shadow } from "../theme/tokens";
 import type { RootStackParamList } from "../../App";
 
 type FrequentItem = { name: string; quantity: string };
 
-const SHARE_ACTIONS: Array<{ icon: string; label: string; color: string }> = [
-	{ icon: "AddCircle", label: "புதிய பட்டியல்", color: colors.fun.sage },
-	{ icon: "ChatRound", label: "WhatsApp", color: colors.whatsapp },
-	{ icon: "Share", label: "பகிரவும்", color: colors.fun.blue },
-	{ icon: "Eye", label: "பட்டியல்", color: colors.fun.gold },
+// Uniform treatment for all four - no WhatsApp size/color emphasis, no
+// per-icon color tinting. Reading as one cohesive row of equal-weight
+// actions is the point (see the design-system discussion in this commit).
+const SHARE_ACTIONS: Array<{ icon: string; label: string }> = [
+	{ icon: "AddCircle", label: "புதிய பட்டியல்" },
+	{ icon: "ChatRound", label: "WhatsApp" },
+	{ icon: "Share", label: "பகிரவும்" },
+	{ icon: "Eye", label: "பட்டியல்" },
 ];
 
 export function RecordingScreen() {
@@ -169,14 +172,16 @@ export function RecordingScreen() {
 				</View>
 
 				<ScrollView style={styles.itemScroll} contentContainerStyle={styles.itemScrollContent}>
-					{items.map((item, i) => (
-						<PopIn key={item.id} delay={i * 40}>
-							<View style={styles.itemCard}>
-								<Text style={styles.itemName}>{item.name}</Text>
-								<Text style={styles.itemQty}>{item.quantity}</Text>
-							</View>
-						</PopIn>
-					))}
+					<View style={styles.itemListCard}>
+						{items.map((item, i) => (
+							<PopIn key={item.id} delay={i * 40}>
+								<View style={[styles.itemRow, i < items.length - 1 && styles.itemRowDivider]}>
+									<Text style={styles.itemName}>{item.name}</Text>
+									<Text style={styles.itemQty}>{item.quantity}</Text>
+								</View>
+							</PopIn>
+						))}
+					</View>
 				</ScrollView>
 
 				<View style={styles.shareActionsRow}>
@@ -247,19 +252,10 @@ export function RecordingScreen() {
 	);
 }
 
-function ShareIconButton({ action, onPress }: { action: { icon: string; label: string; color: string }; onPress: () => void }) {
-	const isWhatsapp = action.icon === "ChatRound";
+function ShareIconButton({ action, onPress }: { action: { icon: string; label: string }; onPress: () => void }) {
 	return (
-		<PressableScale
-			onPress={onPress}
-			accessibilityLabel={action.label}
-			style={[
-				styles.iconButton,
-				isWhatsapp && styles.iconButtonLarge,
-				{ backgroundColor: isWhatsapp ? action.color : withOpacity(action.color, 0.16) },
-			]}
-		>
-			<SolarIcon name={action.icon} type="bold" size={isWhatsapp ? 26 : 20} color={isWhatsapp ? "#062013" : action.color} />
+		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButton}>
+			<SolarIcon name={action.icon} type="linear" size={20} color={colors.accent} />
 		</PressableScale>
 	);
 }
@@ -307,7 +303,7 @@ const styles = StyleSheet.create({
 		gap: 4,
 		paddingHorizontal: 10,
 		paddingVertical: 5,
-		borderRadius: 999,
+		borderRadius: radius.sm,
 		borderWidth: 1.2,
 		borderColor: colors.borderStrong,
 		backgroundColor: colors.surface,
@@ -400,19 +396,29 @@ const styles = StyleSheet.create({
 		width: "100%",
 	},
 	itemScrollContent: {
-		gap: 8,
 		paddingVertical: 8,
 	},
-	itemCard: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
+	// Single card containing all rows with a dashed rule between them,
+	// matching the web app's draft-item-list - not separate cards per item.
+	itemListCard: {
 		backgroundColor: colors.surface,
 		borderWidth: 1,
 		borderColor: colors.border,
-		borderRadius: 12,
-		paddingHorizontal: 14,
+		borderRadius: radius.md,
+		paddingHorizontal: 4,
+		...shadow.sm,
+	},
+	itemRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		paddingHorizontal: 12,
 		paddingVertical: 10,
+	},
+	itemRowDivider: {
+		borderBottomWidth: 1,
+		borderStyle: "dashed",
+		borderBottomColor: colors.borderStrong,
 	},
 	itemName: {
 		fontSize: 14,
@@ -433,17 +439,14 @@ const styles = StyleSheet.create({
 		position: "relative",
 	},
 	iconButton: {
-		width: 50,
-		height: 50,
-		borderRadius: 25,
+		width: 52,
+		height: 52,
+		borderRadius: radius.sm,
 		alignItems: "center",
 		justifyContent: "center",
+		backgroundColor: colors.surface,
+		borderWidth: 1.2,
+		borderColor: colors.borderStrong,
 		...shadow.sm,
-	},
-	iconButtonLarge: {
-		width: 62,
-		height: 62,
-		borderRadius: 31,
-		...shadow.md,
 	},
 });

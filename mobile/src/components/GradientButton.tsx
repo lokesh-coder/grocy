@@ -13,11 +13,11 @@ type Props = {
 	fullWidth?: boolean;
 };
 
-// The pill-shaped accent-gradient CTA used for Done/Organize/share actions
-// on the web app (`.done-button`/`.organize-button`) - gradient fill, soft
-// glow shadow, press-bounce. Full-width by default, but callers that need a
-// compact inline variant (e.g. next to the mic button) can pass style/
-// fullWidth={false}.
+// Rounded-square (not pill) accent-gradient CTA for Done/Organize/share
+// actions - part of the app's single consistent shape language (see
+// theme/tokens.ts and MicButton.tsx's comments). Full-width by default, but
+// callers that need a compact inline variant (e.g. next to the mic button)
+// can pass style/fullWidth={false}.
 export function GradientButton({ children, onPress, disabled, colorsPair = [colors.accent, colors.accentStrong], style, fullWidth = true }: Props) {
 	return (
 		<PressableScale
@@ -34,7 +34,7 @@ export function GradientButton({ children, onPress, disabled, colorsPair = [colo
 
 const styles = StyleSheet.create({
 	wrapper: {
-		borderRadius: radius.pill,
+		borderRadius: radius.md,
 		...shadow.md,
 	},
 	fullWidth: {
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
 		gap: 8,
 		paddingVertical: 14,
 		paddingHorizontal: 18,
-		borderRadius: radius.pill,
+		borderRadius: radius.md,
 	},
 	disabled: {
 		opacity: 1,

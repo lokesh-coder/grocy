@@ -37,6 +37,17 @@ export const colors = {
 	onAccent: "#fff8f2",
 } as const;
 
+// Shape system: rounded-square everywhere, no circles or pills, applied by
+// role rather than freehanded per component - `sm` for surfaces (cards,
+// item rows, checkboxes), `md` for every interactive control (buttons,
+// icon buttons, the mic button). A flat pixel radius reads as "more
+// rounded" on a small element than a large one, so MicButton computes its
+// own corner radius proportionally instead of using `md` directly - but
+// it's tuned to land at roughly the same *visual* roundedness as `md` does
+// on a typical ~48px button, so the two families still read as one system.
+// `pill` is kept only for the quick-add chips, a deliberately distinct
+// "tag" affordance (same split Material Design makes between chips and
+// buttons) - not used for anything else.
 export const radius = {
 	sm: 12,
 	md: 18,

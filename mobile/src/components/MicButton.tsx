@@ -19,13 +19,20 @@ type Props = {
 	size?: number;
 };
 
-// Circular mic button - accent gradient with a continuous subtle "breathing"
-// scale loop while idle (matches the web's `mic-breathe` keyframe), switches
-// to a danger gradient with an expanding/fading pulse ring while recording
-// (matches `mic-pulse`, which animates a growing box-shadow ring - RN can't
-// animate shadow spread smoothly on Android, so this is a separate ring
-// view instead, same visual read).
+// Rounded-square (not circular) mic button - part of a single consistent
+// shape language across the whole app (see theme/tokens.ts's comment on
+// this). A circle only reads as "the primary action" when nothing else
+// nearby is also round; once a second button (Done) sits in the same row,
+// two competing round shapes read as visually confusing rather than
+// hierarchical - so hierarchy here comes from size/color instead of shape.
+// Accent gradient with a continuous subtle "breathing" scale loop while
+// idle (matches the web's `mic-breathe` keyframe), switches to a danger
+// gradient with an expanding/fading pulse ring while recording (matches
+// `mic-pulse`, which animates a growing box-shadow ring - RN can't animate
+// shadow spread smoothly on Android, so this is a separate ring view
+// instead, same visual read).
 export function MicButton({ recording, onPress, size = 84 }: Props) {
+	const cornerRadius = Math.round(size * 0.32);
 	const breathe = useSharedValue(1);
 	const press = useSharedValue(1);
 	const ringScale = useSharedValue(1);
@@ -60,7 +67,7 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 		<View style={{ width: size + 32, height: size + 32, alignItems: "center", justifyContent: "center" }}>
 			<Animated.View
 				style={[
-					{ position: "absolute", width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: colors.danger },
+					{ position: "absolute", width: size, height: size, borderRadius: cornerRadius, borderWidth: 2, borderColor: colors.danger },
 					ringStyle,
 				]}
 			/>
@@ -78,7 +85,7 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 						colors={recording ? [colors.danger, colors.dangerStrong] : [colors.accent, colors.accentStrong]}
 						start={{ x: 0.15, y: 0 }}
 						end={{ x: 0.85, y: 1 }}
-						style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", ...shadow.md }}
+						style={{ width: size, height: size, borderRadius: cornerRadius, alignItems: "center", justifyContent: "center", ...shadow.md }}
 					>
 						<SolarIcon name={recording ? "Stop" : "Microphone"} type="bold" size={Math.round(size * 0.38)} color={colors.onAccent} />
 					</LinearGradient>
