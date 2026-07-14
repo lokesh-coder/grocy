@@ -36,6 +36,12 @@ export function startLiveTranscription(options: LiveTranscriptionOptions): LiveT
 
 	let stopped = false;
 	let activeRecognition: SpeechRecognition | null = null;
+	// Tracks what the recognizer last emitted as final, across restarts (not
+	// reset in startSession) - Android's continuous mode restarts far more
+	// often than desktop Chrome's, and each restart can re-capture the tail
+	// of what the previous session already heard. Comparing against this
+	// catches that overlap before it reaches the transcript.
+	let lastFinalText = "";
 
 	const startSession = () => {
 		const recognition = new SpeechRecognitionCtor();
@@ -50,7 +56,9 @@ export function startLiveTranscription(options: LiveTranscriptionOptions): LiveT
 				const result = event.results[i];
 				const text = result[0]?.transcript ?? "";
 				if (result.isFinal) {
-					if (text.trim()) options.onFinalSegment(text.trim());
+					const deduped = stripOverlap(lastFinalText, text.trim());
+					lastFinalText = text.trim();
+					if (deduped) options.onFinalSegment(deduped);
 				} else {
 					interimText += text;
 				}
@@ -84,4 +92,29 @@ export function startLiveTranscription(options: LiveTranscriptionOptions): LiveT
 			activeRecognition?.stop();
 		},
 	};
+}
+
+// If the tail of `previous` matches the head of `next` word-for-word, that
+// overlap is almost certainly a restart re-capturing audio the last session
+// already transcribed, not a person genuinely repeating a whole phrase back
+// to back - strip it. Only exact word matches are trimmed, capped at a
+// small window, so it can't misfire on legitimate repeated words.
+const MAX_OVERLAP_WORDS = 6;
+
+function stripOverlap(previous: string, next: string): string {
+	if (!previous || !next) return next;
+
+	const prevWords = previous.split(/\s+/);
+	const nextWords = next.split(/\s+/);
+	const maxOverlap = Math.min(prevWords.length, nextWords.length, MAX_OVERLAP_WORDS);
+
+	for (let overlap = maxOverlap; overlap > 0; overlap--) {
+		const prevTail = prevWords.slice(-overlap).join(" ");
+		const nextHead = nextWords.slice(0, overlap).join(" ");
+		if (prevTail === nextHead) {
+			return nextWords.slice(overlap).join(" ").trim();
+		}
+	}
+
+	return next;
 }
