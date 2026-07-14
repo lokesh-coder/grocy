@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { PressableScale } from "./PressableScale";
 import { colors, radius, shadow } from "../theme/tokens";
@@ -9,14 +9,22 @@ type Props = {
 	onPress?: () => void;
 	disabled?: boolean;
 	colorsPair?: [string, string];
+	style?: StyleProp<ViewStyle>;
+	fullWidth?: boolean;
 };
 
 // The pill-shaped accent-gradient CTA used for Done/Organize/share actions
-// on the web app (`.done-button`/`.organize-button`) - full-width, gradient
-// fill, soft glow shadow, press-bounce.
-export function GradientButton({ children, onPress, disabled, colorsPair = [colors.accent, colors.accentStrong] }: Props) {
+// on the web app (`.done-button`/`.organize-button`) - gradient fill, soft
+// glow shadow, press-bounce. Full-width by default, but callers that need a
+// compact inline variant (e.g. next to the mic button) can pass style/
+// fullWidth={false}.
+export function GradientButton({ children, onPress, disabled, colorsPair = [colors.accent, colors.accentStrong], style, fullWidth = true }: Props) {
 	return (
-		<PressableScale style={[styles.wrapper, disabled && styles.disabled]} onPress={disabled ? undefined : onPress} disabled={disabled}>
+		<PressableScale
+			style={[styles.wrapper, fullWidth && styles.fullWidth, disabled && styles.disabled, style]}
+			onPress={disabled ? undefined : onPress}
+			disabled={disabled}
+		>
 			<LinearGradient colors={colorsPair} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.gradient}>
 				{children}
 			</LinearGradient>
@@ -26,9 +34,11 @@ export function GradientButton({ children, onPress, disabled, colorsPair = [colo
 
 const styles = StyleSheet.create({
 	wrapper: {
-		width: "100%",
 		borderRadius: radius.pill,
 		...shadow.md,
+	},
+	fullWidth: {
+		width: "100%",
 	},
 	gradient: {
 		flexDirection: "row",
@@ -36,6 +46,7 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		gap: 8,
 		paddingVertical: 14,
+		paddingHorizontal: 18,
 		borderRadius: radius.pill,
 	},
 	disabled: {

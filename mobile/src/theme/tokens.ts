@@ -102,3 +102,12 @@ export const iconStyle = {
 // Android-only project (no iOS testing in scope) - kept as a guard rather
 // than assumed, in case this ever runs on iOS during development.
 export const isAndroid = Platform.OS === "android";
+
+// Lightweight tint for coloring icon-button backgrounds from the fun
+// palette without needing a pre-baked "soft" variant of every color.
+export function withOpacity(hex: string, alpha: number): string {
+	const r = parseInt(hex.slice(1, 3), 16);
+	const g = parseInt(hex.slice(3, 5), 16);
+	const b = parseInt(hex.slice(5, 7), 16);
+	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}

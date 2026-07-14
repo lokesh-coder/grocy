@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SolarIcon } from "react-native-solar-icons";
 import Animated, {
@@ -16,9 +16,8 @@ import { colors, shadow, spring } from "../theme/tokens";
 type Props = {
 	recording: boolean;
 	onPress: () => void;
+	size?: number;
 };
-
-const SIZE = 84;
 
 // Circular mic button - accent gradient with a continuous subtle "breathing"
 // scale loop while idle (matches the web's `mic-breathe` keyframe), switches
@@ -26,7 +25,7 @@ const SIZE = 84;
 // (matches `mic-pulse`, which animates a growing box-shadow ring - RN can't
 // animate shadow spread smoothly on Android, so this is a separate ring
 // view instead, same visual read).
-export function MicButton({ recording, onPress }: Props) {
+export function MicButton({ recording, onPress, size = 84 }: Props) {
 	const breathe = useSharedValue(1);
 	const press = useSharedValue(1);
 	const ringScale = useSharedValue(1);
@@ -58,8 +57,13 @@ export function MicButton({ recording, onPress }: Props) {
 	}));
 
 	return (
-		<View style={styles.container}>
-			<Animated.View style={[styles.ring, ringStyle]} />
+		<View style={{ width: size + 32, height: size + 32, alignItems: "center", justifyContent: "center" }}>
+			<Animated.View
+				style={[
+					{ position: "absolute", width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: colors.danger },
+					ringStyle,
+				]}
+			/>
 			<Animated.View style={buttonStyle}>
 				<Pressable
 					onPressIn={() => {
@@ -74,37 +78,12 @@ export function MicButton({ recording, onPress }: Props) {
 						colors={recording ? [colors.danger, colors.dangerStrong] : [colors.accent, colors.accentStrong]}
 						start={{ x: 0.15, y: 0 }}
 						end={{ x: 0.85, y: 1 }}
-						style={styles.button}
+						style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", ...shadow.md }}
 					>
-						<SolarIcon name={recording ? "Stop" : "Microphone"} type="bold" size={32} color={colors.onAccent} />
+						<SolarIcon name={recording ? "Stop" : "Microphone"} type="bold" size={Math.round(size * 0.38)} color={colors.onAccent} />
 					</LinearGradient>
 				</Pressable>
 			</Animated.View>
 		</View>
 	);
 }
-
-const styles = StyleSheet.create({
-	container: {
-		width: SIZE + 40,
-		height: SIZE + 40,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	ring: {
-		position: "absolute",
-		width: SIZE,
-		height: SIZE,
-		borderRadius: SIZE / 2,
-		borderWidth: 2,
-		borderColor: colors.danger,
-	},
-	button: {
-		width: SIZE,
-		height: SIZE,
-		borderRadius: SIZE / 2,
-		alignItems: "center",
-		justifyContent: "center",
-		...shadow.md,
-	},
-});

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Share, StatusBar, StyleSheet, Text, View } from "react-native";
+import { BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SolarIcon } from "react-native-solar-icons";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
@@ -13,13 +13,21 @@ import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
 import { API_BASE_URL } from "../lib/config";
+import { getFrequentItems } from "../lib/api";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
-import { colors, fontFamily, shadow } from "../theme/tokens";
+import { colors, fontFamily, shadow, withOpacity } from "../theme/tokens";
 import type { RootStackParamList } from "../../App";
 
-const FINALIZING_TEXT = "பட்டியலை உருவாக்குகிறேன்…";
+type FrequentItem = { name: string; quantity: string };
+
+const SHARE_ACTIONS: Array<{ icon: string; label: string; color: string }> = [
+	{ icon: "AddCircle", label: "புதிய பட்டியல்", color: colors.fun.sage },
+	{ icon: "ChatRound", label: "WhatsApp", color: colors.whatsapp },
+	{ icon: "Share", label: "பகிரவும்", color: colors.fun.blue },
+	{ icon: "Eye", label: "பட்டியல்", color: colors.fun.gold },
+];
 
 export function RecordingScreen() {
 	const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Recording">>();
@@ -31,12 +39,19 @@ export function RecordingScreen() {
 	const [finalizing, setFinalizing] = useState(false);
 	const [finalizedSlug, setFinalizedSlug] = useState<string | null>(null);
 	const [lastListSlug, setLastListSlugState] = useState<string | null>(null);
+	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
 
-	const { clientRef, connected } = useSessionAgent(sessionId);
+	const { clientRef, connected, state } = useSessionAgent(sessionId);
+	const hasContent = segments.length > 0 || !!finalizedSlug;
 
 	useEffect(() => {
 		getOrCreateSessionId().then(setSessionId);
 		getLastListSlug().then(setLastListSlugState);
+		getFrequentItems()
+			.then((data) => setFrequentItems(data.items))
+			.catch(() => {
+				// not critical - the empty state just won't show quick-add chips
+			});
 	}, []);
 
 	const addSegment = useCallback(
@@ -89,11 +104,31 @@ export function RecordingScreen() {
 		}
 	}
 
-	async function startNewList() {
+	const startNewList = useCallback(async () => {
+		// Always clear first - if this is called mid-recording (tapping "New
+		// list" in the header rather than after Done, which already clears),
+		// getOrCreateSessionId() would otherwise just hand back the same
+		// still-stored session id instead of starting a genuinely new one.
+		ExpoSpeechRecognitionModule.stop();
+		await clearSessionId();
 		setSegments([]);
 		setFinalizedSlug(null);
 		setSessionId(await getOrCreateSessionId());
-	}
+	}, []);
+
+	// Without this, the post-Done screen has nowhere to "pop back" to in the
+	// nav stack (it's still the Recording route, just a different local
+	// state), so the hardware back button falls through to Android's default
+	// behavior and exits the app entirely instead of returning to a fresh
+	// recording view.
+	useEffect(() => {
+		if (!finalizedSlug) return;
+		const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+			startNewList();
+			return true;
+		});
+		return () => sub.remove();
+	}, [finalizedSlug, startNewList]);
 
 	async function handleWhatsAppShare(slug: string) {
 		const url = `${API_BASE_URL}/list/${slug}`;
@@ -105,98 +140,126 @@ export function RecordingScreen() {
 		await Share.share({ message: `மளிகை பட்டியல்: ${url}`, url });
 	}
 
-	if (finalizedSlug) {
+	function handleShareAction(action: string, slug: string) {
+		if (action === "AddCircle") startNewList();
+		else if (action === "ChatRound") handleWhatsAppShare(slug);
+		else if (action === "Share") handleShare(slug);
+		else if (action === "Eye") navigation.navigate("SharedList", { slug });
+	}
+
+	if (finalizing) {
 		return (
-			<View style={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 16 }]}>
+			<View style={[styles.container, styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
 				<StatusBar barStyle="dark-content" />
-				<Text style={styles.title}>முடிந்தது!</Text>
+				<View style={styles.finalizingDots}>
+					<LoaderDots variant="fun" />
+				</View>
+				<Text style={styles.finalizingText}>பட்டியலை உருவாக்குகிறேன்…</Text>
+			</View>
+		);
+	}
+
+	if (finalizedSlug) {
+		const items = state?.items ?? [];
+		return (
+			<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
+				<StatusBar barStyle="dark-content" />
+				<View style={styles.header}>
+					<Text style={styles.title}>முடிந்தது! 🎉</Text>
+				</View>
+
+				<ScrollView style={styles.itemScroll} contentContainerStyle={styles.itemScrollContent}>
+					{items.map((item, i) => (
+						<PopIn key={item.id} delay={i * 40}>
+							<View style={styles.itemCard}>
+								<Text style={styles.itemName}>{item.name}</Text>
+								<Text style={styles.itemQty}>{item.quantity}</Text>
+							</View>
+						</PopIn>
+					))}
+				</ScrollView>
+
 				<View style={styles.shareActionsRow}>
 					<ConfettiBurst />
-					<PopIn delay={0}>
-						<IconButton icon="AddCircle" label="புதிய பட்டியல்" onPress={startNewList} />
-					</PopIn>
-					<PopIn delay={40}>
-						<IconButton icon="ChatRound" label="WhatsApp" onPress={() => handleWhatsAppShare(finalizedSlug)} variant="whatsapp" size={64} />
-					</PopIn>
-					<PopIn delay={80}>
-						<IconButton icon="Share" label="பகிரவும்" onPress={() => handleShare(finalizedSlug)} />
-					</PopIn>
-					<PopIn delay={120}>
-						<IconButton icon="Eye" label="பட்டியல்" onPress={() => navigation.navigate("SharedList", { slug: finalizedSlug })} />
-					</PopIn>
+					{SHARE_ACTIONS.map((action, i) => (
+						<PopIn key={action.icon} delay={i * 40}>
+							<ShareIconButton action={action} onPress={() => handleShareAction(action.icon, finalizedSlug)} />
+						</PopIn>
+					))}
 				</View>
 			</View>
 		);
 	}
 
 	return (
-		<View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 12 }]}>
+		<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
 			<StatusBar barStyle="dark-content" />
 			<View style={styles.header}>
-				<SolarIcon name="Microphone" type="bold-duotone" size={20} color={colors.accent} />
-				<Text style={styles.title}>மளிகை பட்டியல்</Text>
+				<View style={styles.headerLeft}>
+					<SolarIcon name="Microphone" type="bold-duotone" size={18} color={colors.accent} />
+					<Text style={styles.title}>மளிகை பட்டியல்</Text>
+					<View style={[styles.statusDot, connected && styles.statusDotConnected]} />
+				</View>
+				{hasContent && (
+					<PressableScale style={styles.newListButton} onPress={startNewList}>
+						<SolarIcon name="AddCircle" type="linear" size={14} color={colors.text} />
+						<Text style={styles.newListButtonText}>புதியது</Text>
+					</PressableScale>
+				)}
 			</View>
-			<Text style={styles.subtitle}>{connected ? "இணைக்கப்பட்டது" : "இணைக்கிறது…"}</Text>
 
-			<SegmentsList segments={segments} />
-
-			{segments.length === 0 && lastListSlug && (
-				<PressableScale style={styles.lastListLink} onPress={() => navigation.navigate("SharedList", { slug: lastListSlug })}>
-					<SolarIcon name="ClockCircle" type="linear" size={14} color={colors.textMuted} />
-					<Text style={styles.lastListLinkText}>கடைசி பட்டியலைப் பார்</Text>
-				</PressableScale>
+			{segments.length === 0 ? (
+				<View style={styles.emptyState}>
+					<SolarIcon name="Cart" type="linear" size={44} color={colors.accent} />
+					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
+					{frequentItems.length > 0 && (
+						<View style={styles.chipsRow}>
+							{frequentItems.map((item) => (
+								<PressableScale key={item.name} style={styles.chip} onPress={() => addSegment(`${item.name} ${item.quantity} வேணும்.`)}>
+									<Text style={styles.chipText}>{item.name}</Text>
+								</PressableScale>
+							))}
+						</View>
+					)}
+					{lastListSlug && (
+						<PressableScale style={styles.lastListLink} onPress={() => navigation.navigate("SharedList", { slug: lastListSlug })}>
+							<SolarIcon name="ClockCircle" type="linear" size={13} color={colors.textMuted} />
+							<Text style={styles.lastListLinkText}>கடைசி பட்டியலைப் பார்</Text>
+						</PressableScale>
+					)}
+				</View>
+			) : (
+				<SegmentsList segments={segments} />
 			)}
 
 			{micError && <Text style={styles.error}>{micError}</Text>}
 
-			<View style={styles.controls}>
-				<MicButton recording={listening} onPress={toggleListening} />
+			<View style={styles.controlsRow}>
+				<MicButton recording={listening} onPress={toggleListening} size={64} />
+				{segments.length > 0 && (
+					<GradientButton onPress={handleDone} fullWidth={false} style={styles.doneCompact}>
+						<SolarIcon name="CheckCircle" type="bold" size={16} color={colors.onAccent} />
+						<Text style={styles.doneButtonText}>முடிந்தது</Text>
+					</GradientButton>
+				)}
 			</View>
-
-			{segments.length > 0 && (
-				<GradientButton onPress={handleDone} disabled={finalizing}>
-					{finalizing ? (
-						<>
-							<LoaderDots variant="onAccent" />
-							<Text style={styles.doneButtonText}>{FINALIZING_TEXT}</Text>
-						</>
-					) : (
-						<>
-							<SolarIcon name="CheckCircle" type="bold" size={18} color={colors.onAccent} />
-							<Text style={styles.doneButtonText}>முடிந்தது</Text>
-						</>
-					)}
-				</GradientButton>
-			)}
 		</View>
 	);
 }
 
-function IconButton({
-	icon,
-	label,
-	onPress,
-	variant,
-	size = 52,
-}: {
-	icon: string;
-	label: string;
-	onPress: () => void;
-	variant?: "whatsapp";
-	size?: number;
-}) {
-	const isWhatsapp = variant === "whatsapp";
+function ShareIconButton({ action, onPress }: { action: { icon: string; label: string; color: string }; onPress: () => void }) {
+	const isWhatsapp = action.icon === "ChatRound";
 	return (
 		<PressableScale
 			onPress={onPress}
-			accessibilityLabel={label}
+			accessibilityLabel={action.label}
 			style={[
 				styles.iconButton,
-				{ width: size, height: size, borderRadius: size / 2 },
-				isWhatsapp ? styles.iconButtonWhatsapp : styles.iconButtonNeutral,
+				isWhatsapp && styles.iconButtonLarge,
+				{ backgroundColor: isWhatsapp ? action.color : withOpacity(action.color, 0.16) },
 			]}
 		>
-			<SolarIcon name={icon} type={isWhatsapp ? "bold" : "linear"} size={isWhatsapp ? 28 : 22} color={isWhatsapp ? "#062013" : colors.text} />
+			<SolarIcon name={action.icon} type="bold" size={isWhatsapp ? 26 : 20} color={isWhatsapp ? "#062013" : action.color} />
 		</PressableScale>
 	);
 }
@@ -205,73 +268,182 @@ const styles = StyleSheet.create({
 	container: {
 		flex: 1,
 		backgroundColor: colors.bg,
-		paddingHorizontal: 20,
+		paddingHorizontal: 18,
 		alignItems: "center",
+	},
+	centered: {
+		justifyContent: "center",
 	},
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 8,
+		justifyContent: "space-between",
+		width: "100%",
+		marginBottom: 10,
+	},
+	headerLeft: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
 	},
 	title: {
-		fontSize: 20,
+		fontSize: 16,
 		fontFamily: fontFamily.extrabold,
 		color: colors.text,
 	},
-	subtitle: {
-		fontSize: 13,
-		fontFamily: fontFamily.semibold,
-		color: colors.textMuted,
-		marginTop: 4,
-		marginBottom: 24,
+	statusDot: {
+		width: 6,
+		height: 6,
+		borderRadius: 3,
+		backgroundColor: colors.borderStrong,
+		marginLeft: 2,
 	},
-	error: {
-		color: colors.danger,
-		fontFamily: fontFamily.medium,
-		marginTop: 12,
+	statusDotConnected: {
+		backgroundColor: colors.fun.sage,
+	},
+	newListButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 4,
+		paddingHorizontal: 10,
+		paddingVertical: 5,
+		borderRadius: 999,
+		borderWidth: 1.2,
+		borderColor: colors.borderStrong,
+		backgroundColor: colors.surface,
+	},
+	newListButtonText: {
+		fontSize: 11,
+		fontFamily: fontFamily.bold,
+		color: colors.text,
+	},
+	emptyState: {
+		flex: 1,
+		width: "100%",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 10,
+		paddingHorizontal: 24,
+	},
+	placeholder: {
+		color: colors.textMuted,
+		fontFamily: fontFamily.semibold,
+		fontSize: 13,
 		textAlign: "center",
+	},
+	chipsRow: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		justifyContent: "center",
+		gap: 6,
+		paddingHorizontal: 12,
+	},
+	chip: {
+		paddingHorizontal: 12,
+		paddingVertical: 6,
+		borderRadius: 999,
+		borderWidth: 1,
+		borderColor: colors.borderStrong,
+		backgroundColor: colors.surface,
+	},
+	chipText: {
+		fontSize: 12,
+		fontFamily: fontFamily.semibold,
+		color: colors.text,
 	},
 	lastListLink: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 6,
-		marginTop: 12,
+		gap: 5,
+		marginTop: 10,
 		alignSelf: "center",
 	},
 	lastListLinkText: {
 		color: colors.textMuted,
 		fontFamily: fontFamily.semibold,
-		fontSize: 13,
+		fontSize: 12,
 	},
-	controls: {
+	error: {
+		color: colors.danger,
+		fontFamily: fontFamily.medium,
+		fontSize: 12,
+		marginBottom: 4,
+		textAlign: "center",
+	},
+	controlsRow: {
+		flexDirection: "row",
 		alignItems: "center",
-		paddingVertical: 12,
+		justifyContent: "center",
+		gap: 10,
+		paddingVertical: 8,
+		width: "100%",
+	},
+	doneCompact: {
+		flexShrink: 1,
 	},
 	doneButtonText: {
 		color: colors.onAccent,
 		fontFamily: fontFamily.bold,
+		fontSize: 13,
+	},
+	finalizingDots: {
+		transform: [{ scale: 2.2 }],
+		marginBottom: 28,
+	},
+	finalizingText: {
 		fontSize: 15,
+		fontFamily: fontFamily.bold,
+		color: colors.textMuted,
+	},
+	itemScroll: {
+		flex: 1,
+		width: "100%",
+	},
+	itemScrollContent: {
+		gap: 8,
+		paddingVertical: 8,
+	},
+	itemCard: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		backgroundColor: colors.surface,
+		borderWidth: 1,
+		borderColor: colors.border,
+		borderRadius: 12,
+		paddingHorizontal: 14,
+		paddingVertical: 10,
+	},
+	itemName: {
+		fontSize: 14,
+		fontFamily: fontFamily.medium,
+		color: colors.text,
+	},
+	itemQty: {
+		fontSize: 12,
+		fontFamily: fontFamily.medium,
+		color: colors.textMuted,
 	},
 	shareActionsRow: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "center",
-		gap: 18,
-		marginTop: 24,
+		gap: 16,
+		paddingVertical: 10,
 		position: "relative",
 	},
 	iconButton: {
+		width: 50,
+		height: 50,
+		borderRadius: 25,
 		alignItems: "center",
 		justifyContent: "center",
 		...shadow.sm,
 	},
-	iconButtonNeutral: {
-		backgroundColor: colors.surface,
-		borderWidth: 1.5,
-		borderColor: colors.borderStrong,
-	},
-	iconButtonWhatsapp: {
-		backgroundColor: colors.whatsapp,
+	iconButtonLarge: {
+		width: 62,
+		height: 62,
+		borderRadius: 31,
 		...shadow.md,
 	},
 });
