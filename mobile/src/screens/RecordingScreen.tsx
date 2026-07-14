@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SegmentsList } from "../components/SegmentsList";
 import { getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
+import type { RootStackParamList } from "../../App";
 
 const FINALIZING_TEXT = "பட்டியலை உருவாக்குகிறேன்…";
 
 export function RecordingScreen() {
+	const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Recording">>();
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [segments, setSegments] = useState<string[]>([]);
 	const [listening, setListening] = useState(false);
 	const [micError, setMicError] = useState<string | null>(null);
 	const [finalizing, setFinalizing] = useState(false);
-	const [finalizedSlug, setFinalizedSlug] = useState<string | null>(null);
 
 	const { clientRef, connected } = useSessionAgent(sessionId);
 
@@ -60,20 +63,13 @@ export function RecordingScreen() {
 		setFinalizing(true);
 		try {
 			const result = await clientRef.current?.stub.finalize();
-			if (result?.slug) setFinalizedSlug(result.slug);
+			// Session id clearing + last-list recovery + share actions are
+			// Phase 3 - this just gets to the finalized list itself, which is
+			// what Phase 2 needs to be testable end-to-end.
+			if (result?.slug) navigation.navigate("SharedList", { slug: result.slug });
 		} finally {
 			setFinalizing(false);
 		}
-	}
-
-	if (finalizedSlug) {
-		return (
-			<View style={styles.container}>
-				<StatusBar barStyle="dark-content" />
-				<Text style={styles.title}>முடிந்தது!</Text>
-				<Text style={styles.subtitle}>slug: {finalizedSlug}</Text>
-			</View>
-		);
 	}
 
 	return (
