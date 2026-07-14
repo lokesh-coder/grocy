@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SolarIcon } from "react-native-solar-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,7 +16,7 @@ import { getFrequentItems } from "../lib/api";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
-import { colors, fontFamily, radius, shadow } from "../theme/tokens";
+import { colors, fontFamily, radius, shadow, withOpacity } from "../theme/tokens";
 import type { RootStackParamList } from "../../App";
 
 type FrequentItem = { name: string; quantity: string };
@@ -25,11 +24,14 @@ type FrequentItem = { name: string; quantity: string };
 // Uniform treatment for all four - no WhatsApp size/color emphasis, no
 // per-icon color tinting. Reading as one cohesive row of equal-weight
 // actions is the point (see the design-system discussion in this commit).
-const SHARE_ACTIONS: Array<{ icon: string; label: string }> = [
-	{ icon: "AddCircle", label: "புதிய பட்டியல்" },
-	{ icon: "ChatRound", label: "WhatsApp" },
-	{ icon: "Share", label: "பகிரவும்" },
-	{ icon: "Eye", label: "பட்டியல்" },
+// Fun comes from each icon's own duotone color pair, not from varying the
+// button shape/size/background - that keeps the row visually consistent
+// while still giving each action its own identity.
+const SHARE_ACTIONS: Array<{ icon: string; label: string; color: string }> = [
+	{ icon: "AddCircle", label: "புதிய பட்டியல்", color: colors.fun.sage },
+	{ icon: "ChatRound", label: "WhatsApp", color: colors.fun.blue },
+	{ icon: "Share", label: "பகிரவும்", color: colors.fun.berry },
+	{ icon: "Eye", label: "பட்டியல்", color: colors.fun.gold },
 ];
 
 export function RecordingScreen() {
@@ -259,16 +261,15 @@ export function RecordingScreen() {
 	);
 }
 
-// Same rounded-square shape family as every other control, but a soft
-// gradient fill + real shadow instead of a flat white-and-border box - a
-// bare bordered square reads as an unstyled placeholder, not a designed
-// element with the same visual quality as the primary buttons.
-function ShareIconButton({ action, onPress }: { action: { icon: string; label: string }; onPress: () => void }) {
+// Same rounded-square shape/size for all four (consistency), but a
+// bold-duotone icon in its own fun-palette color for personality - solid
+// surface background + a real shadow (see the backgroundColor comment
+// below), not a gradient, since a near-white-to-near-white gradient was
+// too subtle to read as a gradient at all.
+function ShareIconButton({ action, onPress }: { action: { icon: string; label: string; color: string }; onPress: () => void }) {
 	return (
-		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButtonWrapper}>
-			<LinearGradient colors={[colors.surface, colors.accentSoft]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.iconButton}>
-				<SolarIcon name={action.icon} type="linear" size={21} color={colors.accentStrong} />
-			</LinearGradient>
+		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButton}>
+			<SolarIcon name={action.icon} type="bold-duotone" size={24} primaryColor={action.color} secondaryColor={withOpacity(action.color, 0.35)} />
 		</PressableScale>
 	);
 }
@@ -460,15 +461,16 @@ const styles = StyleSheet.create({
 		paddingVertical: 10,
 		position: "relative",
 	},
-	iconButtonWrapper: {
-		borderRadius: radius.sm,
-		...shadow.md,
-	},
 	iconButton: {
 		width: 52,
 		height: 52,
 		borderRadius: radius.sm,
 		alignItems: "center",
 		justifyContent: "center",
+		// Explicit backgroundColor is required for Android's elevation-based
+		// shadow to render at all - a transparent-background view often shows
+		// no visible shadow even with elevation set correctly.
+		backgroundColor: colors.surface,
+		...shadow.md,
 	},
 });

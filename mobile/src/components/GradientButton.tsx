@@ -18,7 +18,7 @@ type Props = {
 // theme/tokens.ts and MicButton.tsx's comments). Full-width by default, but
 // callers that need a compact inline variant (e.g. next to the mic button)
 // can pass style/fullWidth={false}.
-export function GradientButton({ children, onPress, disabled, colorsPair = [colors.accent, colors.accentStrong], style, fullWidth = true }: Props) {
+export function GradientButton({ children, onPress, disabled, colorsPair = [colors.fun.gold, colors.accentStrong], style, fullWidth = true }: Props) {
 	return (
 		<PressableScale
 			style={[styles.wrapper, fullWidth && styles.fullWidth, disabled && styles.disabled, style]}
@@ -35,6 +35,11 @@ export function GradientButton({ children, onPress, disabled, colorsPair = [colo
 const styles = StyleSheet.create({
 	wrapper: {
 		borderRadius: radius.md,
+		// Android only renders elevation-based shadow reliably when the same
+		// view also has an opaque backgroundColor - without it the shadow can
+		// end up invisible even though elevation is set correctly. The actual
+		// visible fill still comes from the LinearGradient child on top.
+		backgroundColor: colors.accentStrong,
 		...shadow.md,
 	},
 	fullWidth: {

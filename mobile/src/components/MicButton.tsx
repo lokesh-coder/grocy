@@ -82,10 +82,21 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 					onPress={onPress}
 				>
 					<LinearGradient
-						colors={recording ? [colors.danger, colors.dangerStrong] : [colors.accent, colors.accentStrong]}
+						colors={recording ? [colors.fun.gold, colors.dangerStrong] : [colors.fun.gold, colors.accentStrong]}
 						start={{ x: 0.15, y: 0 }}
 						end={{ x: 0.85, y: 1 }}
-						style={{ width: size, height: size, borderRadius: cornerRadius, alignItems: "center", justifyContent: "center", ...shadow.md }}
+						style={{
+							width: size,
+							height: size,
+							borderRadius: cornerRadius,
+							alignItems: "center",
+							justifyContent: "center",
+							// Android needs an explicit backgroundColor on the same
+							// view for elevation-based shadow to render reliably -
+							// the gradient still paints on top of this.
+							backgroundColor: recording ? colors.dangerStrong : colors.accentStrong,
+							...shadow.md,
+						}}
 					>
 						<SolarIcon name={recording ? "Stop" : "Microphone"} type="bold" size={Math.round(size * 0.38)} color={colors.onAccent} />
 					</LinearGradient>
