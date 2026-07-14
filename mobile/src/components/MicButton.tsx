@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Pressable, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { SolarIcon } from "react-native-solar-icons";
 import Animated, {
 	Easing,
@@ -11,7 +10,7 @@ import Animated, {
 	withSpring,
 	withTiming,
 } from "react-native-reanimated";
-import { colors, shadow, spring } from "../theme/tokens";
+import { colors, spring } from "../theme/tokens";
 
 type Props = {
 	recording: boolean;
@@ -21,16 +20,10 @@ type Props = {
 
 // Rounded-square (not circular) mic button - part of a single consistent
 // shape language across the whole app (see theme/tokens.ts's comment on
-// this). A circle only reads as "the primary action" when nothing else
-// nearby is also round; once a second button (Done) sits in the same row,
-// two competing round shapes read as visually confusing rather than
-// hierarchical - so hierarchy here comes from size/color instead of shape.
-// Accent gradient with a continuous subtle "breathing" scale loop while
-// idle (matches the web's `mic-breathe` keyframe), switches to a danger
-// gradient with an expanding/fading pulse ring while recording (matches
-// `mic-pulse`, which animates a growing box-shadow ring - RN can't animate
-// shadow spread smoothly on Android, so this is a separate ring view
-// instead, same visual read).
+// this). Flat solid fill, no gradient/shadow - a continuous subtle
+// "breathing" scale loop while idle (matches the web's `mic-breathe`
+// keyframe), switches to a danger fill with an expanding/fading pulse ring
+// while recording (matches `mic-pulse`).
 export function MicButton({ recording, onPress, size = 84 }: Props) {
 	const cornerRadius = Math.round(size * 0.32);
 	const breathe = useSharedValue(1);
@@ -81,25 +74,18 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 					}}
 					onPress={onPress}
 				>
-					<LinearGradient
-						colors={recording ? [colors.fun.gold, colors.dangerStrong] : [colors.fun.gold, colors.accentStrong]}
-						start={{ x: 0.15, y: 0 }}
-						end={{ x: 0.85, y: 1 }}
+					<View
 						style={{
 							width: size,
 							height: size,
 							borderRadius: cornerRadius,
 							alignItems: "center",
 							justifyContent: "center",
-							// Android needs an explicit backgroundColor on the same
-							// view for elevation-based shadow to render reliably -
-							// the gradient still paints on top of this.
-							backgroundColor: recording ? colors.dangerStrong : colors.accentStrong,
-							...shadow.md,
+							backgroundColor: recording ? colors.danger : colors.accent,
 						}}
 					>
 						<SolarIcon name={recording ? "Stop" : "Microphone"} type="bold" size={Math.round(size * 0.38)} color={colors.onAccent} />
-					</LinearGradient>
+					</View>
 				</Pressable>
 			</Animated.View>
 		</View>

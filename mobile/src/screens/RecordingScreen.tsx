@@ -16,7 +16,7 @@ import { getFrequentItems } from "../lib/api";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
-import { colors, fontFamily, radius, shadow, withOpacity } from "../theme/tokens";
+import { colors, fontFamily, radius, withOpacity } from "../theme/tokens";
 import type { RootStackParamList } from "../../App";
 
 type FrequentItem = { name: string; quantity: string };
@@ -429,7 +429,6 @@ const styles = StyleSheet.create({
 		borderColor: colors.border,
 		borderRadius: radius.md,
 		paddingHorizontal: 4,
-		...shadow.sm,
 	},
 	itemRow: {
 		flexDirection: "row",
@@ -467,10 +466,8 @@ const styles = StyleSheet.create({
 		borderRadius: radius.sm,
 		alignItems: "center",
 		justifyContent: "center",
-		// Explicit backgroundColor is required for Android's elevation-based
-		// shadow to render at all - a transparent-background view often shows
-		// no visible shadow even with elevation set correctly.
 		backgroundColor: colors.surface,
-		...shadow.md,
+		borderWidth: 1,
+		borderColor: colors.border,
 	},
 });

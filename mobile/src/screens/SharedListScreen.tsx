@@ -8,7 +8,7 @@ import { categoryColor } from "../lib/categoryColors";
 import { categoryIcon } from "../lib/categoryIcons";
 import { deleteItem, getList, organizeList, setItemTicked } from "../lib/api";
 import { AnimatedCheckbox } from "../components/AnimatedCheckbox";
-import { GradientButton } from "../components/GradientButton";
+import { AccentButton } from "../components/AccentButton";
 import { LoaderDots } from "../components/LoaderDots";
 import { PopIn } from "../components/PopIn";
 import { colors, fontFamily, radius, spring } from "../theme/tokens";
@@ -97,7 +97,7 @@ export function SharedListScreen({ slug }: Props) {
 			contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
 		>
 			{!list.organized && (
-				<GradientButton onPress={handleOrganize} disabled={organizing}>
+				<AccentButton onPress={handleOrganize} disabled={organizing}>
 					{organizing ? (
 						<>
 							<LoaderDots variant="onAccent" />
@@ -109,7 +109,7 @@ export function SharedListScreen({ slug }: Props) {
 							<Text style={styles.organizeButtonText}>வகைப்படுத்தி விலை காட்டு</Text>
 						</>
 					)}
-				</GradientButton>
+				</AccentButton>
 			)}
 
 			{priceSummary && (
