@@ -435,6 +435,21 @@ input {
 	transform: scale(0.94);
 }
 
+.last-list-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin-top: 0.6rem;
+	color: var(--color-text-muted);
+	font-size: 0.8rem;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.last-list-link:hover {
+	color: var(--color-accent-strong);
+}
+
 .category-group {
 	animation: fade-slide-in var(--duration-base) var(--ease-standard) both;
 }
@@ -601,7 +616,8 @@ input {
 	display: flex;
 	align-items: center;
 	gap: 0.55rem;
-	width: 100%;
+	flex: 1;
+	min-width: 0;
 	cursor: pointer;
 }
 
@@ -626,6 +642,34 @@ input {
 .item-price {
 	font-weight: 600;
 	color: var(--color-accent-strong);
+}
+
+.delete-item-button {
+	flex-shrink: 0;
+	width: 1.6rem;
+	height: 1.6rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--color-text-muted);
+	cursor: pointer;
+	transition:
+		background var(--duration-fast) var(--ease-standard),
+		color var(--duration-fast) var(--ease-standard),
+		transform var(--duration-fast) var(--ease-bounce);
+}
+
+.delete-item-button:hover {
+	background: var(--color-danger-soft);
+	color: var(--color-danger);
+	transform: rotate(90deg);
+}
+
+.delete-item-button:active {
+	transform: rotate(90deg) scale(0.8);
 }
 
 .price-summary {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { MagicWand, ShoppingCart } from "@phosphor-icons/react";
+import { MagicWand, ShoppingCart, X } from "@phosphor-icons/react";
 import { CATEGORIES } from "../../shared/categories";
 import { categoryIcon } from "../lib/categoryIcons";
 import { categoryColor } from "../lib/categoryColors";
@@ -84,6 +84,13 @@ export function SharedListPage({ slug }: Props) {
 		});
 	}
 
+	// A mis-heard item can only be caught after the fact now that extraction
+	// only runs once, at Done - this is the one way left to fix it.
+	async function deleteItem(itemId: string) {
+		setList((prev) => (prev ? { ...prev, items: prev.items.filter((item) => item.id !== itemId) } : prev));
+		await fetch(`/api/list/${slug}/item/${itemId}`, { method: "DELETE" });
+	}
+
 	if (notFound) {
 		return (
 			<div className="app-shell">
@@ -154,6 +161,13 @@ export function SharedListPage({ slug }: Props) {
 											<span className="item-name">{item.name}</span>
 											<span className="item-qty">{item.quantity}</span>
 										</label>
+										<button
+											className="delete-item-button"
+											aria-label={`${item.name} நீக்கு`}
+											onClick={() => deleteItem(item.id)}
+										>
+											<X weight="bold" size={13} />
+										</button>
 									</li>
 								))}
 							</ul>
@@ -192,6 +206,13 @@ export function SharedListPage({ slug }: Props) {
 														)}
 													</span>
 												</label>
+												<button
+													className="delete-item-button"
+													aria-label={`${item.name} நீக்கு`}
+													onClick={() => deleteItem(item.id)}
+												>
+													<X weight="bold" size={13} />
+												</button>
 											</li>
 										))}
 								</ul>

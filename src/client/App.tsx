@@ -4,6 +4,7 @@ import { CheckCircle, Eye, Plus, ShareNetwork, ShoppingCart, WhatsappLogo } from
 import { Recorder, type RecorderHandle } from "./components/Recorder";
 import { LiveList } from "./components/LiveList";
 import { SharedListPage } from "./components/SharedListPage";
+import { setLastListSlug } from "./lib/lastList";
 import type { SessionState } from "../shared/types";
 
 // localStorage (not sessionStorage) so an in-progress list survives the PWA
@@ -71,6 +72,9 @@ function RecordingView() {
 	useEffect(() => {
 		if (state?.finalizedSlug) {
 			localStorage.removeItem(SESSION_STORAGE_KEY);
+			// So the list can still be found from a fresh session if the app
+			// gets closed right after Done, before tapping View or sharing it.
+			setLastListSlug(state.finalizedSlug);
 		}
 	}, [state?.finalizedSlug]);
 

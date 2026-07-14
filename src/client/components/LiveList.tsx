@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { Basket, Check } from "@phosphor-icons/react";
+import { Basket, Check, ClockCounterClockwise } from "@phosphor-icons/react";
+import { getLastListSlug } from "../lib/lastList";
 import type { DraftItem } from "../../shared/types";
 
 const FINALIZING_TEXT = "பட்டியலை உருவாக்குகிறேன்…";
@@ -42,6 +43,7 @@ type FrequentItem = { name: string; quantity: string };
 export function LiveList({ items, segments, isFinalized, onFinalize, onQuickAdd }: Props) {
 	const [finalizing, setFinalizing] = useState(false);
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
+	const [lastListSlug] = useState(getLastListSlug);
 
 	useEffect(() => {
 		fetch("/api/frequent-items")
@@ -79,6 +81,13 @@ export function LiveList({ items, segments, isFinalized, onFinalize, onQuickAdd 
 								</button>
 							))}
 						</div>
+					)}
+					{lastListSlug && (
+						// No target="_blank" - a detached window has no back-stack in the installed PWA.
+						<a className="last-list-link" href={`/list/${lastListSlug}`}>
+							<ClockCounterClockwise weight="bold" size={14} />
+							கடைசி பட்டியலைப் பார்
+						</a>
 					)}
 				</div>
 			)}

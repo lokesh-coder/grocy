@@ -1,7 +1,7 @@
 import { routeAgentRequest } from "agents";
 import { Hono } from "hono";
 import { categorizeItems, estimatePrices } from "./lib/extract";
-import { getFrequentItems, getList, saveOrganizedItems, setItemTicked } from "./lib/db";
+import { deleteListItem, getFrequentItems, getList, saveOrganizedItems, setItemTicked } from "./lib/db";
 
 export { ListSessionAgent } from "./agents/list-session";
 
@@ -42,6 +42,13 @@ app.patch("/api/list/:slug/item/:itemId", async (c) => {
 	const { slug, itemId } = c.req.param();
 	const body = await c.req.json<{ ticked: boolean }>();
 	const ok = await setItemTicked(c.env.DB, slug, itemId, Boolean(body.ticked));
+	if (!ok) return c.json({ error: "Item not found" }, 404);
+	return c.json({ ok: true });
+});
+
+app.delete("/api/list/:slug/item/:itemId", async (c) => {
+	const { slug, itemId } = c.req.param();
+	const ok = await deleteListItem(c.env.DB, slug, itemId);
 	if (!ok) return c.json({ error: "Item not found" }, 404);
 	return c.json({ ok: true });
 });

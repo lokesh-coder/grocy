@@ -86,6 +86,15 @@ export async function setItemTicked(db: D1Database, slug: string, itemId: string
 	return (result.meta.changes ?? 0) > 0;
 }
 
+// A mis-heard item can only be caught after the fact now that extraction
+// only runs once, at Done - this is the one way to fix it (short of talking
+// to someone with mic access, deleting a wrong item on the shared list is
+// the correction path).
+export async function deleteListItem(db: D1Database, slug: string, itemId: string): Promise<boolean> {
+	const result = await db.prepare("DELETE FROM items WHERE id = ? AND list_id = ?").bind(itemId, slug).run();
+	return (result.meta.changes ?? 0) > 0;
+}
+
 type FrequentItemRow = { name: string; quantity: string };
 
 // Exact-name grouping, not fuzzy matching - if the same item gets
