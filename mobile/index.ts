@@ -1,6 +1,8 @@
-// Must be the very first import - agents/partysocket call crypto.randomUUID()
-// with no fallback, and Hermes has no Web Crypto without this polyfill.
+// Must be the very first imports - agents/partysocket call crypto.randomUUID()
+// with no fallback, and construct a `MessageEvent` global that Hermes
+// doesn't provide. See polyfills.ts for the MessageEvent details.
 import 'react-native-get-random-values';
+import './src/lib/polyfills';
 
 import { registerRootComponent } from 'expo';
 

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
-import { useAgent } from "agents/react";
-import { AccessAwareWebSocket, API_HOST } from "./src/lib/config";
+import { AgentClient } from "agents/client";
+import { accessHeaders, AccessAwareWebSocket, API_HOST } from "./src/lib/config";
 import type { SessionState } from "./src/shared/types";
 
 // Phase 0 smoke test only - proves the agents SDK's WebSocket client can
@@ -14,22 +14,68 @@ import type { SessionState } from "./src/shared/types";
 // (not persisted/rotated) is fine here since this is throwaway.
 const SMOKE_TEST_SESSION = "mobile-phase0-smoke-test";
 
+// Read once at module load (not inside a component/effect) so a bad/missing
+// .env shows up immediately as visible text instead of a silent WebSocket
+// construction failure buried in partysocket's retry loop.
+let envCheckError: string | null = null;
+try {
+  const headers = accessHeaders();
+  envCheckError = `ok (client id starts with ${headers["CF-Access-Client-Id"].slice(0, 8)}…)`;
+} catch (err) {
+  envCheckError = err instanceof Error ? err.message : String(err);
+}
+
 function ConnectionSmokeTest() {
-  const agent = useAgent<SessionState>({
-    agent: "ListSessionAgent",
-    name: SMOKE_TEST_SESSION,
-    host: API_HOST,
-    // Injects Access auth headers onto the WS upgrade - see config.ts.
-    WebSocket: AccessAwareWebSocket,
-  });
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [sessionState, setSessionState] = useState<SessionState | undefined>();
+  const clientRef = useRef<AgentClient | null>(null);
+
+  // useAgent (the React hook from agents/react) reimplements its own RPC/
+  // message handling separately from AgentClient's own (already proven
+  // working from a plain Node script against this exact server), and that
+  // separate implementation is where the RN-specific bug turned out to
+  // live - see the send error investigation. Using AgentClient directly
+  // sidesteps that hook-specific code path entirely.
+  useEffect(() => {
+    const client = new AgentClient<SessionState>({
+      agent: "ListSessionAgent",
+      name: SMOKE_TEST_SESSION,
+      host: API_HOST,
+      WebSocket: AccessAwareWebSocket,
+    });
+    clientRef.current = client;
+    client.addEventListener("open", () => setConnected(true));
+    client.addEventListener("close", () => setConnected(false));
+    client.addEventListener("message", (event: MessageEvent) => {
+      if (typeof event.data !== "string") return;
+      try {
+        const parsed = JSON.parse(event.data);
+        if (parsed.type === "cf_agent_state") setSessionState(parsed.state);
+      } catch {
+        // not JSON / not a state message - ignore
+      }
+    });
+    return () => client.close();
+  }, []);
 
   return (
     <View style={smokeStyles.box}>
-      <Text style={smokeStyles.label}>WS status: {agent.readyState === WebSocket.OPEN ? "connected" : "connecting…"}</Text>
-      <Text style={smokeStyles.label}>transcript: {agent.state?.transcript || "(empty)"}</Text>
+      <Text style={smokeStyles.label}>env check: {envCheckError}</Text>
+      <Text style={smokeStyles.label}>WS status: {connected ? "connected" : "connecting…"}</Text>
+      <Text style={smokeStyles.label}>transcript: {sessionState?.transcript || "(empty)"}</Text>
+      {lastError && <Text style={[smokeStyles.label, { color: "#c0392b" }]}>{lastError}</Text>}
       <Pressable
         style={smokeStyles.button}
-        onPress={() => agent.stub.addTranscriptSegment(`smoke test ${new Date().toLocaleTimeString()}`)}
+        onPress={() => {
+          setLastError("sending…");
+          Promise.resolve(clientRef.current?.stub.addTranscriptSegment(`smoke test ${new Date().toLocaleTimeString()}`))
+            .then((result) => setLastError(`send ok, result: ${JSON.stringify(result)}`))
+            .catch((err) => {
+              const details = err instanceof Error ? `${err.name}: ${err.message}\n${err.stack}` : JSON.stringify(err);
+              setLastError(`send error: ${details}`);
+            });
+        }}
       >
         <Text style={smokeStyles.buttonText}>Send test segment</Text>
       </Pressable>
