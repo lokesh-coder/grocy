@@ -49,7 +49,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#f8f5ec"
         }
-      ]
+      ],
+      "./plugins/withReleaseSigning"
     ]
   }
 }

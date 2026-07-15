@@ -16,7 +16,13 @@ expo-env.d.ts
 *.p8
 *.p12
 *.key
+*.keystore
 *.mobileprovision
+
+# Release signing - lives outside /android (which prebuild wipes on --clean)
+# specifically so it survives across rebuilds; must never be committed.
+/keystores/*
+!/keystores/README.md
 
 # Metro
 .metro-health-check*
