@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "மளிகை பட்டியல்",
     "slug": "mobile",
     "version": "1.0.0",
     "scheme": "grocy",
@@ -16,7 +16,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#d97757",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -41,7 +41,15 @@
         }
       ],
       "expo-font",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#f8f5ec"
+        }
+      ]
     ]
   }
 }
