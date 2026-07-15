@@ -7,6 +7,25 @@ export { ListSessionAgent } from "./agents/list-session";
 
 const app = new Hono<{ Bindings: Env }>();
 
+// Android Digital Asset Links - lets the OS verify that this app is
+// authorized to open https://grocy.notesane.workers.dev/list/:slug links
+// directly instead of falling back to a browser (App Links). The
+// fingerprint is the release keystore's cert SHA-256 (see
+// mobile/keystores/README.md) - would need updating here if that keystore
+// is ever rotated.
+app.get("/.well-known/assetlinks.json", (c) =>
+	c.json([
+		{
+			relation: ["delegate_permission/common.handle_all_urls"],
+			target: {
+				namespace: "android_app",
+				package_name: "com.anonymous.mobile",
+				sha256_cert_fingerprints: ["FF:5C:D5:5C:58:83:85:16:D5:36:4E:69:C8:DC:C5:CE:C5:84:B0:6D:AD:E0:F8:BC:78:5F:19:35:D8:50:E8:DF"],
+			},
+		},
+	]),
+);
+
 app.get("/api/frequent-items", async (c) => {
 	const items = await getFrequentItems(c.env.DB);
 	return c.json({ items });

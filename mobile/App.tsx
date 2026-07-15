@@ -19,11 +19,13 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Lets `grocy://list/:slug` (and, once Android App Links are set up per the
-// migration plan, the same https://grocy.notesane.workers.dev/list/:slug
-// link already used for WhatsApp shares) open straight to that list.
+// Lets `grocy://list/:slug` AND the same https://grocy.notesane.workers.dev
+// /list/:slug link already used for WhatsApp shares open straight to that
+// list - the https prefix only works because of the Android App Links
+// verification set up via android.intentFilters below and the Worker's
+// /.well-known/assetlinks.json route (src/server/index.ts).
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ["grocy://"],
+  prefixes: ["grocy://", "https://grocy.notesane.workers.dev"],
   config: {
     screens: {
       Recording: "",
