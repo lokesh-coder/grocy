@@ -4,32 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy",
-    "typecheck": "tsc -b",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply grocy-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply grocy-db --remote"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.43.1",
-    "@types/dom-speech-recognition": "^0.0.12",
     "@types/node": "^26.1.1",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
     "typescript": "^5.5.2",
-    "vite": "^8.1.3",
     "wrangler": "^4.107.1"
   },
   "dependencies": {
-    "@phosphor-icons/react": "^2.1.10",
     "agents": "^0.17.3",
     "hono": "^4.12.28",
-    "nanoid": "^5.1.16",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "nanoid": "^5.1.16"
   }
 }
