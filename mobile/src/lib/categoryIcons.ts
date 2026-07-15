@@ -1,19 +1,21 @@
-// Mirrors categoryColors.ts - a Solar icon name per category. Solar Icons is
-// a generic UI icon set (not food-specific), so a couple of these are
-// reasonable proxies (Sun for fruits, Bag for grocery) rather than literal
-// matches - verified these names exist in the installed package's manifest.
+// Mirrors categoryColors.ts - a Phosphor icon component per category.
+// Phosphor is a generic UI icon set (not food-specific), so a couple of
+// these are reasonable proxies (Sun for fruits, Bag for grocery) rather
+// than literal matches - verified these names exist in the installed
+// package.
+import { BagIcon, DotsThreeIcon, DropIcon, HouseIcon, LeafIcon, PillIcon, SunIcon, type Icon } from "phosphor-react-native";
 import type { CategoryId } from "../shared/categories";
 
-const ICONS: Record<CategoryId, string> = {
-	vegetables: "Leaf",
-	fruits: "Sun",
-	grocery: "Bag",
-	dairy: "Bottle",
-	medical: "Pill",
-	household: "Home",
-	other: "MenuDots",
+const ICONS: Record<CategoryId, Icon> = {
+	vegetables: LeafIcon,
+	fruits: SunIcon,
+	grocery: BagIcon,
+	dairy: DropIcon,
+	medical: PillIcon,
+	household: HouseIcon,
+	other: DotsThreeIcon,
 };
 
-export function categoryIcon(id: CategoryId): string {
-	return ICONS[id] ?? "MenuDots";
+export function categoryIcon(id: CategoryId): Icon {
+	return ICONS[id] ?? DotsThreeIcon;
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Pressable, View } from "react-native";
-import { SolarIcon } from "react-native-solar-icons";
+import { MicrophoneIcon, StopIcon } from "phosphor-react-native";
 import Animated, {
 	Easing,
 	useAnimatedStyle,
@@ -84,7 +84,11 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 							backgroundColor: recording ? colors.danger : colors.accent,
 						}}
 					>
-						<SolarIcon name={recording ? "Stop" : "Microphone"} type="bold" size={Math.round(size * 0.38)} color={colors.onAccent} />
+						{recording ? (
+							<StopIcon weight="fill" size={Math.round(size * 0.38)} color={colors.onAccent} />
+						) : (
+							<MicrophoneIcon weight="fill" size={Math.round(size * 0.38)} color={colors.onAccent} />
+						)}
 					</View>
 				</Pressable>
 			</Animated.View>

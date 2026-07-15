@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SolarIcon } from "react-native-solar-icons";
+import { MagicWandIcon, TrashIcon } from "phosphor-react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
@@ -105,7 +105,7 @@ export function SharedListScreen({ slug }: Props) {
 						</>
 					) : (
 						<>
-							<SolarIcon name="MagicStick3" type="bold" size={17} color={colors.onAccent} />
+							<MagicWandIcon weight="fill" size={17} color={colors.onAccent} />
 							<Text style={styles.organizeButtonText}>வகைப்படுத்தி விலை காட்டு</Text>
 						</>
 					)}
@@ -130,21 +130,24 @@ export function SharedListScreen({ slug }: Props) {
 			)}
 
 			{list.organized &&
-				grouped.map((group, gi) => (
-					<PopIn key={group.category.id} delay={gi * 60}>
-						<View style={styles.group}>
-							<View style={styles.groupHeader}>
-								<SolarIcon name={categoryIcon(group.category.id)} type="linear" size={14} color={categoryColor(group.category.id)} />
-								<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
+				grouped.map((group, gi) => {
+					const CategoryIcon = categoryIcon(group.category.id);
+					return (
+						<PopIn key={group.category.id} delay={gi * 60}>
+							<View style={styles.group}>
+								<View style={styles.groupHeader}>
+									<CategoryIcon weight="regular" size={14} color={categoryColor(group.category.id)} />
+									<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
+								</View>
+								{group.items.map((item, i) => (
+									<PopIn key={item.id} delay={i * 30}>
+										<ItemRow item={item} onToggle={toggle} onDelete={handleDelete} showPrice color={categoryColor(group.category.id)} />
+									</PopIn>
+								))}
 							</View>
-							{group.items.map((item, i) => (
-								<PopIn key={item.id} delay={i * 30}>
-									<ItemRow item={item} onToggle={toggle} onDelete={handleDelete} showPrice color={categoryColor(group.category.id)} />
-								</PopIn>
-							))}
-						</View>
-					</PopIn>
-				))}
+						</PopIn>
+					);
+				})}
 		</ScrollView>
 	);
 }
@@ -201,7 +204,7 @@ function DeleteButton({ onPress }: { onPress: () => void }) {
 			onPress={onPress}
 		>
 			<Animated.View style={animatedStyle}>
-				<SolarIcon name="TrashBinMinimalistic" type="linear" size={18} color={colors.danger} />
+				<TrashIcon weight="regular" size={18} color={colors.danger} />
 			</Animated.View>
 		</Pressable>
 	);

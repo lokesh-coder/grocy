@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SolarIcon } from "react-native-solar-icons";
+import {
+	BasketIcon,
+	ClipboardTextIcon,
+	ClockIcon,
+	EyeIcon,
+	FilePlusIcon,
+	SealCheckIcon,
+	ShareNetworkIcon,
+	ShoppingBagIcon,
+	WhatsappLogoIcon,
+	type Icon,
+} from "phosphor-react-native";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -16,7 +27,7 @@ import { getFrequentItems } from "../lib/api";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
 import { useSessionAgent } from "../lib/useSessionAgent";
-import { colors, fontFamily, radius, withOpacity } from "../theme/tokens";
+import { colors, fontFamily, radius } from "../theme/tokens";
 import type { RootStackParamList } from "../../App";
 
 type FrequentItem = { name: string; quantity: string };
@@ -27,11 +38,12 @@ type FrequentItem = { name: string; quantity: string };
 // Fun comes from each icon's own duotone color pair, not from varying the
 // button shape/size/background - that keeps the row visually consistent
 // while still giving each action its own identity.
-const SHARE_ACTIONS: Array<{ icon: string; label: string; color: string }> = [
-	{ icon: "AddCircle", label: "புதிய பட்டியல்", color: colors.fun.sage },
-	{ icon: "ChatRound", label: "WhatsApp", color: colors.fun.blue },
-	{ icon: "Share", label: "பகிரவும்", color: colors.fun.berry },
-	{ icon: "Eye", label: "பட்டியல்", color: colors.fun.gold },
+type ShareAction = "new" | "whatsapp" | "share" | "view";
+const SHARE_ACTIONS: Array<{ action: ShareAction; Icon: Icon; label: string; color: string }> = [
+	{ action: "new", Icon: FilePlusIcon, label: "புதிய பட்டியல்", color: colors.fun.sage },
+	{ action: "whatsapp", Icon: WhatsappLogoIcon, label: "WhatsApp", color: colors.fun.blue },
+	{ action: "share", Icon: ShareNetworkIcon, label: "பகிரவும்", color: colors.fun.berry },
+	{ action: "view", Icon: EyeIcon, label: "பட்டியல்", color: colors.fun.gold },
 ];
 
 export function RecordingScreen() {
@@ -145,11 +157,11 @@ export function RecordingScreen() {
 		await Share.share({ message: `மளிகை பட்டியல்: ${url}`, url });
 	}
 
-	function handleShareAction(action: string, slug: string) {
-		if (action === "AddCircle") startNewList();
-		else if (action === "ChatRound") handleWhatsAppShare(slug);
-		else if (action === "Share") handleShare(slug);
-		else if (action === "Eye") navigation.navigate("SharedList", { slug });
+	function handleShareAction(action: ShareAction, slug: string) {
+		if (action === "new") startNewList();
+		else if (action === "whatsapp") handleWhatsAppShare(slug);
+		else if (action === "share") handleShare(slug);
+		else if (action === "view") navigation.navigate("SharedList", { slug });
 	}
 
 	if (finalizing) {
@@ -170,7 +182,10 @@ export function RecordingScreen() {
 			<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
 				<StatusBar barStyle="dark-content" />
 				<View style={styles.header}>
-					<Text style={styles.title}>முடிந்தது! 🎉</Text>
+					<View style={styles.headerLeft}>
+						<ClipboardTextIcon weight="duotone" size={18} color={colors.accent} />
+						<Text style={styles.title}>முடிந்தது! 🎉</Text>
+					</View>
 				</View>
 
 				<ScrollView style={styles.itemScroll} contentContainerStyle={styles.itemScrollContent}>
@@ -189,8 +204,8 @@ export function RecordingScreen() {
 				<View style={styles.shareActionsRow}>
 					<ConfettiBurst />
 					{SHARE_ACTIONS.map((action, i) => (
-						<PopIn key={action.icon} delay={i * 40}>
-							<ShareIconButton action={action} onPress={() => handleShareAction(action.icon, finalizedSlug)} />
+						<PopIn key={action.action} delay={i * 40}>
+							<ShareIconButton action={action} onPress={() => handleShareAction(action.action, finalizedSlug)} />
 						</PopIn>
 					))}
 				</View>
@@ -203,13 +218,13 @@ export function RecordingScreen() {
 			<StatusBar barStyle="dark-content" />
 			<View style={styles.header}>
 				<View style={styles.headerLeft}>
-					<SolarIcon name="Microphone" type="bold-duotone" size={18} color={colors.accent} />
+					<ShoppingBagIcon weight="duotone" size={18} color={colors.accent} />
 					<Text style={styles.title}>மளிகை பட்டியல்</Text>
 					<View style={[styles.statusDot, connected && styles.statusDotConnected]} />
 				</View>
 				{hasContent && (
 					<PressableScale style={styles.newListButton} onPress={startNewList}>
-						<SolarIcon name="AddCircle" type="linear" size={14} color={colors.text} />
+						<FilePlusIcon weight="regular" size={14} color={colors.text} />
 						<Text style={styles.newListButtonText}>புதியது</Text>
 					</PressableScale>
 				)}
@@ -217,7 +232,7 @@ export function RecordingScreen() {
 
 			{segments.length === 0 ? (
 				<View style={styles.emptyState}>
-					<SolarIcon name="Cart" type="linear" size={44} color={colors.accent} />
+					<BasketIcon weight="regular" size={44} color={colors.accent} />
 					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
 					{frequentItems.length > 0 && (
 						<View style={styles.chipsRow}>
@@ -230,7 +245,7 @@ export function RecordingScreen() {
 					)}
 					{lastListSlug && (
 						<PressableScale style={styles.lastListLink} onPress={() => navigation.navigate("SharedList", { slug: lastListSlug })}>
-							<SolarIcon name="ClockCircle" type="linear" size={13} color={colors.textMuted} />
+							<ClockIcon weight="regular" size={13} color={colors.textMuted} />
 							<Text style={styles.lastListLinkText}>கடைசி பட்டியலைப் பார்</Text>
 						</PressableScale>
 					)}
@@ -252,7 +267,7 @@ export function RecordingScreen() {
 				{segments.length > 0 && (
 					<PopIn style={styles.doneSlot}>
 						<PressableScale style={styles.doneButton} onPress={handleDone}>
-							<SolarIcon name="CheckCircle" type="bold" size={22} color={colors.accent} />
+							<SealCheckIcon weight="fill" size={22} color={colors.accent} />
 						</PressableScale>
 					</PopIn>
 				)}
@@ -266,10 +281,17 @@ export function RecordingScreen() {
 // surface background + a real shadow (see the backgroundColor comment
 // below), not a gradient, since a near-white-to-near-white gradient was
 // too subtle to read as a gradient at all.
-function ShareIconButton({ action, onPress }: { action: { icon: string; label: string; color: string }; onPress: () => void }) {
+function ShareIconButton({
+	action,
+	onPress,
+}: {
+	action: { Icon: Icon; label: string; color: string };
+	onPress: () => void;
+}) {
+	const { Icon } = action;
 	return (
 		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButton}>
-			<SolarIcon name={action.icon} type="bold-duotone" size={24} primaryColor={action.color} secondaryColor={withOpacity(action.color, 0.35)} />
+			<Icon weight="duotone" size={24} color={action.color} duotoneColor={action.color} duotoneOpacity={0.35} />
 		</PressableScale>
 	);
 }
