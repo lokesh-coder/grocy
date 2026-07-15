@@ -15,12 +15,14 @@ mobile/                     Android app (Expo / React Native)
   ├─ Recording screen          - mic button, live transcript, Done
   └─ Shared list screen        - categorized, priced, tick-off-while-shopping
 
-src/server/                 Cloudflare Worker (Hono)
+src/server/                 Cloudflare Worker (Hono) - "grocy"
   ├─ ListSessionAgent           Durable Object - one per recording session,
   │                             WebSocket RPC with the app, single extraction
   │                             pass at "Done" (not on every spoken segment)
-  ├─ /api/list/:slug            REST API for the shared list screen
-  └─ /.well-known/assetlinks.json   Android App Links verification
+  └─ /api/list/:slug            REST API for the shared list screen
+
+link/                       Cloudflare Worker (separate, public) - "grocy-open"
+  └─ /list/:slug                Redirects a shared link into the Android app
 
 D1                          Persisted finalized lists
 OpenRouter (Gemini)         Extraction, categorization, price estimation
@@ -90,7 +92,12 @@ npx wrangler secret put OPENROUTER_API_KEY   # set the real secret on the Worker
 npm run deploy                               # wrangler deploy
 ```
 
-Live at `<worker-name>.<your-subdomain>.workers.dev`.
+Live at `<worker-name>.<your-subdomain>.workers.dev`. There's a second,
+separate Worker to deploy too - see [App Links](#app-links-shared-links-open-the-app-not-a-browser) below:
+
+```bash
+cd link && npm install && npm run deploy
+```
 
 **This deploys with no authentication by default** — anyone who finds the URL
 can use it (and trigger paid OpenRouter calls). For personal use, turn on
@@ -211,37 +218,38 @@ WhatsApp, USB) — the recipient opens it, allows "install unknown apps" for
 whatever app they used to open it, and taps install. Play Protect may warn
 it's not from the Play Store — expected for a sideloaded app.
 
-## Android App Links (shared links open the app, not a browser)
+## App Links (shared links open the app, not a browser)
 
-Tapping a `https://<your-worker>.workers.dev/list/:slug` link (e.g. from a
-WhatsApp share) opens the Android app directly instead of a browser, via
-[Android App
-Links](https://developer.android.com/training/app-links/verify-android-applinks).
-Two pieces have to agree:
+Tapping a shared link (e.g. from a WhatsApp share) opens the Android app
+directly instead of a browser or a dead end. Two things were tried before
+landing on the current approach:
 
-1. **The Worker** serves `/.well-known/assetlinks.json`
-   (`src/server/index.ts`) declaring the app's package name and release
-   signing cert fingerprint as authorized to handle its links.
-2. **The app** declares an intent filter for that domain/path
-   (`mobile/app.json` → `android.intentFilters`, `autoVerify: true`) and
-   registers the same `https://` prefix in the navigation linking config
-   (`mobile/App.tsx`).
+- **A custom `grocy://` scheme** works for in-app navigation, but WhatsApp
+  (and most apps) don't auto-linkify custom schemes in message text - it
+  just shows as plain, unclickable text. Not shareable on its own.
+- **Android App Links** (OS-level verification that this app owns
+  `https://grocy.notesane.workers.dev/list/*`) would let a normal `https://`
+  link open the app directly - but the whole domain sits behind Cloudflare
+  Access, and Android's verification crawler can't complete an interactive
+  login, so verification always failed. Fixing that would have meant
+  carving a public hole in Access for `/.well-known/assetlinks.json`, which
+  felt like the wrong tradeoff for what it bought.
 
-If you fork this for your own domain/package name, both sides need updating
-together - the fingerprint in `assetlinks.json` has to match whatever
-keystore you're actually signing release builds with:
+**What's actually running**: a second, separate Cloudflare Worker (`link/`,
+deployed as `grocy-open`) with its own `grocy-open.notesane.workers.dev`
+subdomain that was never added to the Access policy in the first place, so
+it's plain public - no bypass, no dashboard changes, no login for whoever
+taps the link. It doesn't touch D1 or the app's API; it only knows the slug
+already in the URL and returns a tiny HTML page that redirects to
+`grocy://list/:slug` via Chrome's
+[`intent://`](https://developer.chrome.com/docs/android/intents/) mechanism,
+with a plain `grocy://` link as a manual fallback. Shared links use this
+domain (`mobile/src/lib/config.ts`'s `LINK_BASE_URL`), not the main app
+domain - the actual list data still only ever loads via the app's own
+authenticated call to the main Worker.
 
-```bash
-cd mobile
-apksigner verify --print-certs android/app/build/outputs/apk/release/app-release.apk
-# take the "SHA-256 digest" line, uppercase it, colon-separate every 2 chars
-```
-
-Android verifies this at install time by fetching `assetlinks.json` itself —
-if it doesn't match (or the Worker isn't deployed with the current route),
-links silently fall back to opening in a browser instead of erroring
-visibly, which is the main thing to check first if links aren't opening the
-app.
+If you fork this for your own package name, update `APP_PACKAGE` in
+`link/src/index.ts` to match `mobile/app.json`'s `android.package`.
 
 ## Adapting this for your own language/household
 

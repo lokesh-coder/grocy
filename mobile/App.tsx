@@ -19,13 +19,13 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Lets `grocy://list/:slug` AND the same https://grocy.notesane.workers.dev
-// /list/:slug link already used for WhatsApp shares open straight to that
-// list - the https prefix only works because of the Android App Links
-// verification set up via android.intentFilters below and the Worker's
-// /.well-known/assetlinks.json route (src/server/index.ts).
+// Lets `grocy://list/:slug` open straight to that list. Shared (WhatsApp/
+// etc.) links are a separate https://grocy-open.notesane.workers.dev/list/:slug
+// URL (see link/ at the repo root) that redirects into this scheme via
+// Android's intent:// mechanism - not handled by this app directly, so it
+// isn't listed as a prefix here.
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ["grocy://", "https://grocy.notesane.workers.dev"],
+  prefixes: ["grocy://"],
   config: {
     screens: {
       Recording: "",

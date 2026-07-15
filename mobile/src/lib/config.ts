@@ -7,6 +7,12 @@
 export const API_HOST = "grocy.notesane.workers.dev";
 export const API_BASE_URL = `https://${API_HOST}`;
 
+// A separate, deliberately public (not Access-protected) Worker whose only
+// job is to redirect a tapped link into the app via grocy://list/:slug -
+// see link/ at the repo root. Shared links use this domain, not API_HOST,
+// so tapping one doesn't require completing an Access login first.
+export const LINK_BASE_URL = "https://grocy-open.notesane.workers.dev";
+
 const ACCESS_CLIENT_ID = process.env.EXPO_PUBLIC_CF_ACCESS_CLIENT_ID;
 const ACCESS_CLIENT_SECRET = process.env.EXPO_PUBLIC_CF_ACCESS_CLIENT_SECRET;
 

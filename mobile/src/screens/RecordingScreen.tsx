@@ -11,7 +11,7 @@ import { LoaderDots } from "../components/LoaderDots";
 import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
-import { API_BASE_URL } from "../lib/config";
+import { LINK_BASE_URL } from "../lib/config";
 import { getFrequentItems } from "../lib/api";
 import { getLastListSlug, setLastListSlug } from "../lib/lastList";
 import { clearSessionId, getOrCreateSessionId } from "../lib/session";
@@ -136,12 +136,12 @@ export function RecordingScreen() {
 	}, [finalizedSlug, startNewList]);
 
 	async function handleWhatsAppShare(slug: string) {
-		const url = `${API_BASE_URL}/list/${slug}`;
+		const url = `${LINK_BASE_URL}/list/${slug}`;
 		await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(`மளிகை பட்டியல்: ${url}`)}`);
 	}
 
 	async function handleShare(slug: string) {
-		const url = `${API_BASE_URL}/list/${slug}`;
+		const url = `${LINK_BASE_URL}/list/${slug}`;
 		await Share.share({ message: `மளிகை பட்டியல்: ${url}`, url });
 	}
 
