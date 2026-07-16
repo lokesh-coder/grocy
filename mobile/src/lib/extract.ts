@@ -1,21 +1,14 @@
-import { CATEGORY_IDS, type CategoryId } from "../../shared/categories";
-import type { DraftItem, ListItem } from "../../shared/types";
+// Ported from the old Cloudflare Worker's src/server/lib/extract.ts - same
+// prompts/schemas/reasoning effort, now calling OpenRouter directly with the
+// user's own key (see openrouterAuth.ts) instead of routing through a
+// backend that existed only to hide a shared key. Keep this in sync with
+// that file if it still exists, or treat this as the sole copy once it's
+// been removed.
+import { CATEGORY_IDS, type CategoryId } from "../shared/categories";
+import type { DraftItem, ListItem } from "../shared/types";
+import { getOpenRouterKey } from "./openrouterAuth";
 
-// The extraction model is a plain config value (not hardcoded), so swapping
-// to a different model later is a one-line change here or in wrangler.jsonc,
-// not a rewrite. "~google/gemini-pro-latest" is OpenRouter's own alias for
-// whatever the current best Gemini Pro model is, so it stays current as
-// Google ships new versions without us needing to track exact version names.
-const DEFAULT_MODEL = "~google/gemini-pro-latest";
-
-// Gemini's default ("max") reasoning depth measured 4-15s of wildly variable
-// latency for even a single simple item - it decides how much to think per
-// request with no real ceiling. "low" cut reasoning tokens by ~75% (and cost
-// similarly) while still handling the hard cases correctly (full item
-// replacement, quantity-vs-price disambiguation) across repeated tests, and
-// tightened latency to a consistent ~5-7s instead of an unpredictable range -
-// the inconsistency itself was as much the complaint as the raw speed.
-const DEFAULT_REASONING_EFFORT = "low";
+const REASONING_EFFORT = "low";
 
 const SYSTEM_PROMPT = `You read a running Tamil speech transcript of a grocery list someone is dictating out loud, sometimes mixed with English words (brand names, loanwords). People think out loud while doing this: they pause, restart, correct themselves, change their mind about an item entirely, or fix a quantity. Extract the current, de-duplicated set of grocery items the person currently wants - not just what they said, but what they mean after accounting for every correction and replacement.
 
@@ -62,10 +55,6 @@ const ITEMS_SCHEMA = {
 	},
 };
 
-// Runs once, at "Done" - not on every live segment - so it can afford to be
-// a separate, simpler call: given already-resolved items, just classify each
-// one. No transcript, no correction/replacement reasoning, so it's cheap
-// even though it's a second round trip.
 const CATEGORIZE_SYSTEM_PROMPT = `You classify grocery items into store categories. You'll get a numbered list of grocery item names (Tamil, sometimes mixed with English). For each numbered item, assign exactly one category id from this fixed list: ${CATEGORY_IDS.join(", ")}. Do not change, translate, or reinterpret the item names - only classify them. Return one entry per input index.`;
 
 const CATEGORIZE_SCHEMA = {
@@ -92,95 +81,6 @@ const CATEGORIZE_SCHEMA = {
 	},
 };
 
-type ExtractEnv = {
-	OPENROUTER_API_KEY: string;
-	EXTRACTION_MODEL?: string;
-	EXTRACTION_REASONING_EFFORT?: string;
-};
-
-export async function extractItems(env: ExtractEnv, transcript: string): Promise<DraftItem[]> {
-	if (!transcript.trim()) return [];
-
-	const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			model: env.EXTRACTION_MODEL || DEFAULT_MODEL,
-			max_tokens: 3000,
-			reasoning: { effort: env.EXTRACTION_REASONING_EFFORT || DEFAULT_REASONING_EFFORT },
-			messages: [
-				{ role: "system", content: SYSTEM_PROMPT },
-				{ role: "user", content: transcript },
-			],
-			response_format: { type: "json_schema", json_schema: ITEMS_SCHEMA },
-		}),
-	});
-
-	if (!response.ok) {
-		throw new Error(`OpenRouter request failed: ${response.status} ${await response.text()}`);
-	}
-
-	const result = await response.json();
-	const rawItems = parseItemsResponse(result);
-
-	return rawItems.map((item, index) => ({
-		id: `item-${index}`,
-		name: String(item.name ?? "").trim(),
-		quantity: String(item.quantity ?? "1").trim() || "1",
-	}));
-}
-
-// Runs once at "Done" to attach a category to each already-resolved item -
-// see the comment on CATEGORIZE_SYSTEM_PROMPT for why this is a separate,
-// cheaper call rather than part of the live extraction pass.
-export async function categorizeItems(env: ExtractEnv, items: DraftItem[]): Promise<ListItem[]> {
-	if (items.length === 0) return [];
-
-	const numberedList = items.map((item, index) => `${index}. ${item.name}`).join("\n");
-
-	const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			model: env.EXTRACTION_MODEL || DEFAULT_MODEL,
-			max_tokens: 1500,
-			reasoning: { effort: env.EXTRACTION_REASONING_EFFORT || DEFAULT_REASONING_EFFORT },
-			messages: [
-				{ role: "system", content: CATEGORIZE_SYSTEM_PROMPT },
-				{ role: "user", content: numberedList },
-			],
-			response_format: { type: "json_schema", json_schema: CATEGORIZE_SCHEMA },
-		}),
-	});
-
-	if (!response.ok) {
-		throw new Error(`OpenRouter request failed: ${response.status} ${await response.text()}`);
-	}
-
-	const result = await response.json();
-	const categoryByIndex = parseCategoriesResponse(result);
-
-	return items.map((item, index) => ({
-		...item,
-		category: categoryByIndex.get(index) ?? "other",
-		estimatedPrice: null,
-	}));
-}
-
-// Runs once at "Done", after categorization - a single web-search-grounded
-// call (":online") covering the whole list, so the model can pull real
-// current prices from Indian grocery/quick-commerce listings instead of
-// guessing from training data. Best-effort: prices are point estimates, not
-// authoritative, and an item is simply left unpriced if the model has no
-// confident basis - never a fabricated number. "low" reasoning effort here
-// cut cost roughly 10x in testing (large default-effort searches balloon
-// prompt tokens) with no meaningful quality loss.
 const PRICE_SYSTEM_PROMPT = `You estimate current Indian grocery prices. You'll get a numbered list of grocery items (name and quantity, Tamil sometimes mixed with English) being bought in Tamil Nadu, India. For each item, search current Indian grocery/quick-commerce listings (BigBasket, Zepto, Blinkit, and similar) and give a single reasonable approximate price in rupees for that exact quantity - a point estimate, not a range. If you have no reasonable basis to estimate a specific item, omit it entirely rather than guessing wildly.`;
 
 const PRICE_SCHEMA = {
@@ -207,43 +107,77 @@ const PRICE_SCHEMA = {
 	},
 };
 
-export async function estimatePrices(env: ExtractEnv, items: ListItem[]): Promise<ListItem[]> {
+async function chatCompletion(model: string, maxTokens: number, systemPrompt: string, userContent: string, schema: unknown) {
+	const key = await getOpenRouterKey();
+	if (!key) throw new Error("Not connected to OpenRouter - open Settings and connect an account first.");
+
+	const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${key}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			model,
+			max_tokens: maxTokens,
+			reasoning: { effort: REASONING_EFFORT },
+			messages: [
+				{ role: "system", content: systemPrompt },
+				{ role: "user", content: userContent },
+			],
+			response_format: { type: "json_schema", json_schema: schema },
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error(`OpenRouter request failed: ${response.status} ${await response.text()}`);
+	}
+
+	return response.json();
+}
+
+export async function extractItems(transcript: string, model: string): Promise<DraftItem[]> {
+	if (!transcript.trim()) return [];
+
+	const result = await chatCompletion(model, 3000, SYSTEM_PROMPT, transcript, ITEMS_SCHEMA);
+	const rawItems = parseItemsResponse(result);
+
+	return rawItems.map((item, index) => ({
+		id: `item-${index}`,
+		name: String(item.name ?? "").trim(),
+		quantity: String(item.quantity ?? "1").trim() || "1",
+	}));
+}
+
+export async function categorizeItems(items: DraftItem[], model: string): Promise<ListItem[]> {
+	if (items.length === 0) return [];
+
+	const numberedList = items.map((item, index) => `${index}. ${item.name}`).join("\n");
+	const result = await chatCompletion(model, 1500, CATEGORIZE_SYSTEM_PROMPT, numberedList, CATEGORIZE_SCHEMA);
+	const categoryByIndex = parseCategoriesResponse(result);
+
+	return items.map((item, index) => ({
+		...item,
+		category: categoryByIndex.get(index) ?? "other",
+		estimatedPrice: null,
+	}));
+}
+
+export async function estimatePrices(items: ListItem[], model: string): Promise<ListItem[]> {
 	if (items.length === 0) return items;
 
 	const numberedList = items.map((item, index) => `${index}. ${item.name} - ${item.quantity}`).join("\n");
 
-	let response: Response;
+	let result: unknown;
 	try {
-		response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				model: `${env.EXTRACTION_MODEL || DEFAULT_MODEL}:online`,
-				max_tokens: 2000,
-				reasoning: { effort: env.EXTRACTION_REASONING_EFFORT || DEFAULT_REASONING_EFFORT },
-				messages: [
-					{ role: "system", content: PRICE_SYSTEM_PROMPT },
-					{ role: "user", content: numberedList },
-				],
-				response_format: { type: "json_schema", json_schema: PRICE_SCHEMA },
-			}),
-		});
+		result = await chatCompletion(`${model}:online`, 2000, PRICE_SYSTEM_PROMPT, numberedList, PRICE_SCHEMA);
 	} catch (error) {
 		// Pricing is a nice-to-have enrichment, not core to the list - a
-		// network hiccup here shouldn't block finalizing the list itself.
+		// network hiccup here shouldn't block showing the list itself.
 		console.error("Price estimation request failed, leaving items unpriced", error);
 		return items;
 	}
 
-	if (!response.ok) {
-		console.error("Price estimation failed, leaving items unpriced", response.status, await response.text());
-		return items;
-	}
-
-	const result = await response.json();
 	const priceByIndex = parsePricesResponse(result);
 
 	return items.map((item, index) => ({
@@ -253,16 +187,14 @@ export async function estimatePrices(env: ExtractEnv, items: ListItem[]): Promis
 }
 
 function parseItemsResponse(result: unknown): Array<{ name?: unknown; quantity?: unknown }> {
-	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message
-		?.content;
+	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
 	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
 	const items = (parsed as { items?: unknown })?.items;
 	return Array.isArray(items) ? items : [];
 }
 
 function parseCategoriesResponse(result: unknown): Map<number, CategoryId> {
-	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message
-		?.content;
+	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
 	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
 	const categories = (parsed as { categories?: unknown })?.categories;
 	const entries = Array.isArray(categories) ? categories : [];
@@ -278,8 +210,7 @@ function parseCategoriesResponse(result: unknown): Map<number, CategoryId> {
 }
 
 function parsePricesResponse(result: unknown): Map<number, number> {
-	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message
-		?.content;
+	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
 	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
 	const prices = (parsed as { prices?: unknown })?.prices;
 	const entries = Array.isArray(prices) ? prices : [];

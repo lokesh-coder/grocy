@@ -3,6 +3,7 @@
     "name": "மளிகை பட்டியல்",
     "slug": "mobile",
     "version": "1.0.0",
+    "scheme": "grocy",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -49,7 +50,9 @@
           "backgroundColor": "#f8f5ec"
         }
       ],
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "expo-web-browser",
+      "expo-secure-store"
     ]
   }
 }

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
+import { Alert, BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
 	BasketIcon,
 	ClipboardTextIcon,
 	ClockIcon,
 	FilePlusIcon,
+	GearIcon,
 	MagicWandIcon,
 	SealCheckIcon,
 	ShareNetworkIcon,
@@ -21,8 +22,12 @@ import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
-import { extractList, organizeItems } from "../lib/api";
+import { SettingsModal } from "../components/SettingsModal";
+import { categorizeItems, estimatePrices, extractItems } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList } from "../lib/listHistory";
+import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
+import { DEFAULT_MODEL_ID } from "../lib/models";
+import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey } from "../lib/openrouterAuth";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
 import { categoryIcon } from "../lib/categoryIcons";
@@ -76,17 +81,47 @@ export function RecordingScreen() {
 	const [organizing, setOrganizing] = useState(false);
 	const [lastList, setLastList] = useState<DraftItem[] | null>(null);
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
+	const [model, setModel] = useState(DEFAULT_MODEL_ID);
+	const [settingsVisible, setSettingsVisible] = useState(false);
+	const [connected, setConnected] = useState(false);
+	const [connecting, setConnecting] = useState(false);
 
 	const hasContent = segments.length > 0 || finalized;
 
 	useEffect(() => {
 		getLastList().then(setLastList);
+		getSelectedModel().then(setModel);
+		getOpenRouterKey().then((key) => setConnected(!!key));
 		getFrequentItems()
 			.then(setFrequentItems)
 			.catch(() => {
 				// not critical - the empty state just won't show quick-add chips
 			});
 	}, []);
+
+	async function handleSelectModel(id: string) {
+		setModel(id);
+		setSettingsVisible(false);
+		await setSelectedModel(id);
+	}
+
+	async function handleConnect() {
+		setConnecting(true);
+		try {
+			await connectOpenRouter();
+			setConnected(true);
+			setSettingsVisible(false);
+		} catch (error) {
+			Alert.alert("இணைக்க முடியவில்லை", error instanceof Error ? error.message : String(error));
+		} finally {
+			setConnecting(false);
+		}
+	}
+
+	async function handleDisconnect() {
+		await disconnectOpenRouter();
+		setConnected(false);
+	}
 
 	const addSegment = useCallback((text: string) => {
 		setSegments((prev) => [...prev, text]);
@@ -120,9 +155,13 @@ export function RecordingScreen() {
 
 	async function handleDone() {
 		if (listening) ExpoSpeechRecognitionModule.stop();
+		if (!connected) {
+			setSettingsVisible(true);
+			return;
+		}
 		setFinalizing(true);
 		try {
-			const { items } = await extractList(segments.join(" "));
+			const items = await extractItems(segments.join(" "), model);
 			await saveFinalizedList(items);
 			setLastList(items);
 			setFinalizedItems(items);
@@ -136,8 +175,9 @@ export function RecordingScreen() {
 	async function handleOrganize() {
 		setOrganizing(true);
 		try {
-			const { items } = await organizeItems(finalizedItems);
-			setOrganizedItems(items);
+			const categorized = await categorizeItems(finalizedItems, model);
+			const priced = await estimatePrices(categorized, model);
+			setOrganizedItems(priced);
 		} finally {
 			setOrganizing(false);
 		}
@@ -303,13 +343,32 @@ export function RecordingScreen() {
 					<ShoppingBagIcon weight="duotone" size={18} color={colors.accent} />
 					<Text style={styles.title}>மளிகை பட்டியல்</Text>
 				</View>
-				{hasContent && (
-					<PressableScale style={styles.newListButton} onPress={startNewList}>
-						<FilePlusIcon weight="regular" size={14} color={colors.text} />
-						<Text style={styles.newListButtonText}>புதியது</Text>
+				<View style={styles.headerRight}>
+					{hasContent && (
+						<PressableScale style={styles.newListButton} onPress={startNewList}>
+							<FilePlusIcon weight="regular" size={14} color={colors.text} />
+							<Text style={styles.newListButtonText}>புதியது</Text>
+						</PressableScale>
+					)}
+					<PressableScale
+						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
+						onPress={() => setSettingsVisible(true)}
+					>
+						<GearIcon weight="regular" size={16} color={connected ? colors.textMuted : colors.accent} />
 					</PressableScale>
-				)}
+				</View>
 			</View>
+
+			<SettingsModal
+				visible={settingsVisible}
+				selectedModel={model}
+				onSelect={handleSelectModel}
+				onClose={() => setSettingsVisible(false)}
+				connected={connected}
+				connecting={connecting}
+				onConnect={handleConnect}
+				onDisconnect={handleDisconnect}
+			/>
 
 			{segments.length === 0 ? (
 				<View style={styles.emptyState}>
@@ -405,6 +464,25 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 6,
+	},
+	headerRight: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+	settingsButton: {
+		width: 28,
+		height: 28,
+		borderRadius: radius.sm,
+		alignItems: "center",
+		justifyContent: "center",
+		borderWidth: 1.2,
+		borderColor: colors.borderStrong,
+		backgroundColor: colors.surface,
+	},
+	settingsButtonAttention: {
+		borderColor: colors.accent,
+		backgroundColor: colors.accentSoft,
 	},
 	title: {
 		fontSize: 16,
