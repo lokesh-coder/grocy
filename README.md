@@ -14,10 +14,14 @@ mobile/                     Android app (Expo / React Native)
   ├─ Recording screen          - mic button, live transcript, Done, Organize, share
   └─ Settings                  - connect an OpenRouter account, pick a model
 
+site/                       Static site (grocy.store) - landing page, privacy
+                             policy, and the OAuth callback page the app's
+                             connect flow redirects through (see site/README.md)
+
 OpenRouter (Gemini)         Extraction, categorization, price estimation
 ```
 
-There's no server. The app connects directly to OpenRouter using a
+There's no app server. The app connects directly to OpenRouter using a
 [PKCE OAuth flow](https://openrouter.ai/docs/use-cases/oauth-pkce)
 (`mobile/src/lib/openrouterAuth.ts`) — the user authorizes once from
 Settings, the resulting API key is theirs, stored on-device (`expo-secure-

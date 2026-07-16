@@ -8,6 +8,7 @@ import {
 	FilePlusIcon,
 	GearIcon,
 	MagicWandIcon,
+	QuestionIcon,
 	SealCheckIcon,
 	ShareNetworkIcon,
 	ShoppingBagIcon,
@@ -23,6 +24,7 @@ import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
 import { SettingsModal } from "../components/SettingsModal";
+import { HelpModal } from "../components/HelpModal";
 import { categorizeItems, estimatePrices, extractItems } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList } from "../lib/listHistory";
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
@@ -83,6 +85,7 @@ export function RecordingScreen() {
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
 	const [model, setModel] = useState(DEFAULT_MODEL_ID);
 	const [settingsVisible, setSettingsVisible] = useState(false);
+	const [helpVisible, setHelpVisible] = useState(false);
 	const [connected, setConnected] = useState(false);
 	const [connecting, setConnecting] = useState(false);
 
@@ -350,6 +353,9 @@ export function RecordingScreen() {
 							<Text style={styles.newListButtonText}>புதியது</Text>
 						</PressableScale>
 					)}
+					<PressableScale style={styles.settingsButton} onPress={() => setHelpVisible(true)}>
+						<QuestionIcon weight="regular" size={16} color={colors.textMuted} />
+					</PressableScale>
 					<PressableScale
 						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
 						onPress={() => setSettingsVisible(true)}
@@ -369,6 +375,7 @@ export function RecordingScreen() {
 				onConnect={handleConnect}
 				onDisconnect={handleDisconnect}
 			/>
+			<HelpModal visible={helpVisible} onClose={() => setHelpVisible(false)} />
 
 			{segments.length === 0 ? (
 				<View style={styles.emptyState}>

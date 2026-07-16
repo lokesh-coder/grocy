@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="utf-8" />
+<title>Grocy — இணைக்கப்படுகிறது…</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="wrap" style="text-align: center; padding-top: 30vh;">
+  <div class="badge" style="margin: 0 auto 20px;">🛒</div>
+  <p>Grocy செயலிக்குத் திரும்புகிறது… இந்தத் தாவலை மூடலாம்.</p>
+</div>
+<script>
+  // Registered as the OAuth callback_url for OpenRouter's PKCE flow (see
+  // mobile/src/lib/openrouterAuth.ts) - OpenRouter only accepts https/
+  // localhost callback URLs, not a custom app scheme directly. In the
+  // normal case, expo-web-browser's auth session intercepts navigation to
+  // this exact page before it even finishes loading, closing the in-app
+  // browser and handing the code back to the app - this redirect is just a
+  // fallback for the rare case that doesn't happen (e.g. the link opened
+  // outside an active auth session).
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get("code");
+  var error = params.get("error");
+  if (code) {
+    window.location.replace("grocy://auth-callback?code=" + encodeURIComponent(code));
+  } else if (error) {
+    window.location.replace("grocy://auth-callback?error=" + encodeURIComponent(error));
+  }
+</script>
+</body>
+</html>

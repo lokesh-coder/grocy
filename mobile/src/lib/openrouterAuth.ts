@@ -11,15 +11,13 @@ const APP_REDIRECT_URL = "grocy://auth-callback";
 
 // OpenRouter's callback_url only accepts https:// (or localhost) - it
 // silently ignores the OAuth request and just shows the normal logged-in
-// dashboard if given a bare custom scheme, with no error. redirectmeto.com
-// is a free public redirect service that takes the real target as a path
-// suffix and 307s to it, preserving whatever query string OpenRouter
-// appends (the auth code) - verified directly: a request to
-// https://redirectmeto.com/grocy://auth-callback?code=X 307s to
-// grocy://auth-callback?code=X. This is only the https "middleman"
-// OpenRouter needs; the actual URL the auth session watches for below is
-// still the app's own scheme.
-const OAUTH_CALLBACK_URL = `https://redirectmeto.com/${APP_REDIRECT_URL}`;
+// dashboard if given a bare custom scheme, with no error. This page (see
+// the site/ directory at the repo root) does the same job a third-party
+// redirect service was doing before: it's the https "middleman" OpenRouter
+// needs, which then hands off to the app's own grocy:// scheme - normally
+// intercepted directly by the auth session below before this page even
+// finishes loading, with a client-side redirect as a fallback.
+const OAUTH_CALLBACK_URL = "https://grocy-site.pages.dev/auth-callback";
 
 const KEY_STORE_KEY = "grocy-openrouter-key";
 

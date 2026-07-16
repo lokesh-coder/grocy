@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Grocy — Privacy Policy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Grocy</a>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: July 2026</p>
+
+  <div class="card">
+    <p>Grocy is a voice-to-grocery-list Android app. This policy explains what data the app touches, where it goes, and — just as important — what the app's developer never sees, because <strong>Grocy has no backend server of its own</strong>. Everything described below happens either entirely on your device, or directly between your device and services you connect yourself.</p>
+  </div>
+
+  <h2>Voice input</h2>
+  <p>When you speak a list, Grocy uses your Android device's built-in speech recognition (the same system service other apps use) to turn your voice into text, entirely on your phone. Grocy does not record, store, or transmit raw audio anywhere.</p>
+
+  <h2>What gets sent to OpenRouter</h2>
+  <p>To turn a spoken transcript into a structured list — and, if you choose to, to categorize items and estimate prices — Grocy sends the transcript text and list items to <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a>, an AI model routing service. This happens using <strong>your own OpenRouter account</strong>, connected once from the app's Settings screen. Grocy's developer has no access to this traffic and operates no server that it passes through — it goes directly from your device to OpenRouter using your credentials.</p>
+  <p>OpenRouter's own handling of this data is governed by <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener">OpenRouter's privacy policy</a>, not this one.</p>
+
+  <h2>What's stored, and where</h2>
+  <ul>
+    <li><strong>Your OpenRouter API key</strong> — stored only on your device, in Android's encrypted secure storage (Keystore-backed). Never transmitted anywhere except directly to OpenRouter with each request.</li>
+    <li><strong>List history and quick-add suggestions</strong> — stored only on your device (local app storage). Uninstalling the app or clearing its storage removes this permanently.</li>
+    <li><strong>Model preference</strong> — a small local setting for which AI model to use, stored only on your device.</li>
+  </ul>
+  <p>None of this is uploaded to, or visible to, Grocy's developer, because there is nothing on the other end to receive it.</p>
+
+  <h2>What Grocy does not do</h2>
+  <ul>
+    <li>No user accounts with the developer</li>
+    <li>No analytics or usage tracking</li>
+    <li>No advertising or ad networks</li>
+    <li>No sharing of your data with anyone other than OpenRouter, and only because you chose to connect that account</li>
+  </ul>
+
+  <h2>Children's privacy</h2>
+  <p>Grocy is not directed at children and does not knowingly collect data from children.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the updated version will be posted at this same address with a revised date above.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy: <a href="mailto:contact@grocy.store">contact@grocy.store</a></p>
+</div>
+</body>
+</html>
