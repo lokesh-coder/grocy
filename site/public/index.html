@@ -5,74 +5,145 @@
 <title>Grocy — குரல் மூலம் மளிகை பட்டியல்</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="தமிழில் பேசுங்கள், மளிகை பட்டியல் தயார். Grocy is a voice-to-grocery-list Android app for Tamil, with no backend server — your own OpenRouter account does the work." />
-<link rel="stylesheet" href="/style.css" />
+<link rel="stylesheet" href="/landing.css" />
 </head>
 <body>
-<div class="wrap">
+<div class="page">
 
-  <section class="hero">
-    <div class="blob blob-coral"></div>
-    <div class="blob blob-blue"></div>
-    <div class="blob blob-violet"></div>
-    <div class="hero-content">
-      <div class="badge-big">🛒</div>
-      <h1>Grocy</h1>
-      <p class="tagline">தமிழில் பேசுங்கள். மளிகை பட்டியல் தயார்.</p>
+  <header class="hero">
+    <div class="hero-ring ring-1"></div>
+    <div class="hero-ring ring-2"></div>
+
+    <nav class="hero-nav">
+      <a class="icon-btn" href="https://github.com/lokesh-coder/grocy" target="_blank" rel="noopener" aria-label="GitHub">
+        <i class="ti ti-brand-github"></i>
+      </a>
+      <div class="nav-pills">
+        <a href="#features">அம்சங்கள்</a>
+        <a href="#how">எப்படி வேலை செய்கிறது</a>
+        <a href="/privacy">தனியுரிமை</a>
+      </div>
+      <a class="cta-pill" href="https://github.com/lokesh-coder/grocy" target="_blank" rel="noopener">
+        <span class="cta-pill-icon"><i class="ti ti-arrow-up-right"></i></span>
+        GitHub
+      </a>
+    </nav>
+
+    <div class="wordmark">grocy</div>
+
+    <div class="hero-body">
+      <div class="hero-side-left">
+        <div class="tilt-label">எளிய, சுலபமான<br />பட்டியல்</div>
+
+        <div class="stat-stack">
+          <div class="stat-bubble stat-1">
+            <span class="stat-num">100<small>%</small></span>
+            <span class="stat-label">இலவசம்</span>
+          </div>
+          <div class="stat-bubble stat-2">
+            <span class="stat-num">0</span>
+            <span class="stat-label">விளம்பரங்கள்<br />இல்லை</span>
+          </div>
+          <div class="stat-bubble stat-3">
+            <span class="stat-num">0</span>
+            <span class="stat-label">சேவையகம்</span>
+          </div>
+        </div>
+
+        <div class="phone-mock">
+          <div class="phone-mock-inner-outer">
+            <div class="phone-mock-inner">
+              <div class="phone-title">இன்றைய பட்டியல்</div>
+              <div class="phone-sub">8 பொருட்கள் · 3 முடிந்தது</div>
+              <div class="phone-tags">
+                <span class="tag tag-lime">காய்கறி</span>
+                <span class="tag tag-pink">பால்</span>
+                <span class="tag tag-gold">பலகாரம்</span>
+              </div>
+              <div class="phone-item"><span class="dot"></span>வாழைப்பழம்</div>
+              <div class="phone-item done"><span class="dot dot-filled"></span>பால்</div>
+              <div class="phone-item"><span class="dot"></span>ரொட்டி</div>
+              <div class="phone-item"><span class="dot"></span>முட்டை</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-side-right">
+        <h1 class="hero-headline">
+          <span class="headline-light">மளிகை பட்டியல்</span>
+          <span class="headline-bold">இனி</span>
+          <span class="headline-bold">எளிது</span>
+        </h1>
+        <p class="hero-desc">Grocy உங்கள் மளிகை பட்டியலை குரல் மூலம் தமிழில் உருவாக்க உதவுகிறது — பேசுங்கள், பட்டியல் தயார், WhatsApp-ல் பகிருங்கள்.</p>
+        <a class="cta-pill cta-dark" href="https://github.com/lokesh-coder/grocy" target="_blank" rel="noopener">
+          <span class="cta-pill-icon cta-pill-icon-light"><i class="ti ti-arrow-up-right"></i></span>
+          குறியீட்டைப் பாருங்கள்
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <section class="section" id="features">
+    <h2 class="section-title">அம்சங்கள்</h2>
+    <p class="section-sub">எளிமையானது, தனியுரிமையானது</p>
+    <div class="feature-grid">
+      <div class="feature-card tint-lime">
+        <div class="icon-circle icon-lime"><i class="ti ti-microphone"></i></div>
+        <h3>இயல்பாகப் பேசுங்கள்</h3>
+        <p>நிறுத்தினாலும், திருத்தினாலும், மனது மாறினாலும் பரவாயில்லை — Grocy புரிந்துகொள்ளும்.</p>
+      </div>
+      <div class="feature-card tint-gold">
+        <div class="icon-circle icon-gold"><i class="ti ti-tag"></i></div>
+        <h3>வகைப்படுத்தி, விலையும்</h3>
+        <p>விரும்பினால் பொருட்களை வகைப்படுத்தி, மதிப்பீட்டு விலையும் காட்டும்.</p>
+      </div>
+      <div class="feature-card tint-pink">
+        <div class="icon-circle icon-pink"><i class="ti ti-brand-whatsapp"></i></div>
+        <h3>உடனே பகிரலாம்</h3>
+        <p>WhatsApp-லோ, வேறு எங்காவதோ — முடிந்த பட்டியலை ஒரே தட்டலில் பகிரலாம்.</p>
+      </div>
+      <div class="feature-card tint-sage">
+        <div class="icon-circle icon-sage"><i class="ti ti-lock"></i></div>
+        <h3>தனியுரிமை முதலில்</h3>
+        <p>சொந்த சேவையகம் கிடையாது — உங்கள் தரவு நேரடியாக உங்கள் OpenRouter கணக்குக்குச் செல்லும்.</p>
+      </div>
     </div>
   </section>
 
-  <div class="feature-grid">
-    <div class="feature-card tint-coral">
-      <div class="icon-circle icon-coral">🎙️</div>
-      <h3>இயல்பாகப் பேசுங்கள்</h3>
-      <p>நிறுத்தினாலும், திருத்தினாலும், மனது மாறினாலும் பரவாயில்லை — Grocy புரிந்துகொள்ளும்.</p>
+  <section class="section" id="how">
+    <h2 class="section-title">எப்படி வேலை செய்கிறது</h2>
+    <p class="section-sub">மூன்று படிகள், அவ்வளவுதான்</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num" style="background: var(--lime)">1</div>
+        <div>
+          <div class="step-title">மைக்கை அழுத்துங்கள்</div>
+          <div class="step-desc">உங்கள் தமிழ் குரலை Grocy கேட்கும்.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background: var(--gold)">2</div>
+        <div>
+          <div class="step-title">ஒரு பட்டியல் தயாராகும்</div>
+          <div class="step-desc">தெளிவான, துல்லியமான மளிகை பட்டியல்.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background: var(--pink)">3</div>
+        <div>
+          <div class="step-title">பகிருங்கள், கடைக்குச் செல்லுங்கள்</div>
+          <div class="step-desc">WhatsApp-லோ, வேறு எங்காவதோ.</div>
+        </div>
+      </div>
     </div>
-    <div class="feature-card tint-sage">
-      <div class="icon-circle icon-sage">🏷️</div>
-      <h3>வகைப்படுத்தி, விலையும்</h3>
-      <p>விரும்பினால் பொருட்களை வகைப்படுத்தி, மதிப்பீட்டு விலையும் காட்டும்.</p>
-    </div>
-    <div class="feature-card tint-blue">
-      <div class="icon-circle icon-blue">💬</div>
-      <h3>உடனே பகிரலாம்</h3>
-      <p>WhatsApp-லோ, வேறு எங்காவதோ — முடிந்த பட்டியலை ஒரே தட்டலில் பகிரலாம்.</p>
-    </div>
-    <div class="feature-card tint-violet">
-      <div class="icon-circle icon-violet">🔒</div>
-      <h3>தனியுரிமை முதலில்</h3>
-      <p>சொந்த சேவையகம் கிடையாது — உங்கள் தரவு நேரடியாக உங்கள் OpenRouter கணக்குக்குச் செல்லும்.</p>
-    </div>
-  </div>
+  </section>
 
-  <h2>எப்படி வேலை செய்கிறது</h2>
-  <div class="steps">
-    <div class="step">
-      <div class="step-num" style="background: var(--fun-coral)">1</div>
-      <div>
-        <div class="step-title">மைக்கை அழுத்துங்கள்</div>
-        <div class="step-desc">உங்கள் தமிழ் குரலை Grocy கேட்கும்.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num" style="background: var(--fun-blue)">2</div>
-      <div>
-        <div class="step-title">ஒரு பட்டியல் தயாராகும்</div>
-        <div class="step-desc">தெளிவான, துல்லியமான மளிகை பட்டியல்.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num" style="background: var(--fun-sage)">3</div>
-      <div>
-        <div class="step-title">பகிருங்கள், கடைக்குச் செல்லுங்கள்</div>
-        <div class="step-desc">WhatsApp-லோ, வேறு எங்காவதோ.</div>
-      </div>
-    </div>
-  </div>
-
-  <p class="footer center">
+  <p class="site-footer">
     <a href="/privacy">தனியுரிமைக் கொள்கை (Privacy Policy)</a> ·
     <a href="https://github.com/lokesh-coder/grocy" target="_blank" rel="noopener">GitHub</a>
   </p>
+
 </div>
 </body>
 </html>
