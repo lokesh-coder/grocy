@@ -17,7 +17,7 @@ const APP_REDIRECT_URL = "grocy://auth-callback";
 // needs, which then hands off to the app's own grocy:// scheme - normally
 // intercepted directly by the auth session below before this page even
 // finishes loading, with a client-side redirect as a fallback.
-const OAUTH_CALLBACK_URL = "https://grocy-site.pages.dev/auth-callback";
+const OAUTH_CALLBACK_URL = "https://grocy.store/auth-callback";
 
 const KEY_STORE_KEY = "grocy-openrouter-key";
 
