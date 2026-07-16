@@ -3,7 +3,6 @@
     "name": "மளிகை பட்டியல்",
     "slug": "mobile",
     "version": "1.0.0",
-    "scheme": "grocy",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

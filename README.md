@@ -2,37 +2,36 @@
 
 Speak a grocery list out loud in Tamil (naturally — pauses, corrections, changed
 your mind about an item, mixed-in English words) and watch it turn into a
-structured, categorized, priced list. Send the finished list to someone else
-with a share link so they can tick items off while shopping.
+clean, optionally categorized-and-priced list. Share the finished list as
+text to WhatsApp or anywhere else.
 
 Personal/family-use Android app, built on Cloudflare's stack for the backend —
-no separate server to manage.
+no separate server to manage, and no data stored server-side at all.
 
 ## Architecture
 
 ```
 mobile/                     Android app (Expo / React Native)
-  ├─ Recording screen          - mic button, live transcript, Done
-  └─ Shared list screen        - categorized, priced, tick-off-while-shopping
+  └─ Recording screen          - mic button, live transcript, Done, Organize, share
 
 src/server/                 Cloudflare Worker (Hono) - "grocy"
-  ├─ ListSessionAgent           Durable Object - one per recording session,
-  │                             WebSocket RPC with the app, single extraction
-  │                             pass at "Done" (not on every spoken segment)
-  └─ /api/list/:slug            REST API for the shared list screen
+  ├─ POST /api/extract          Transcript -> extracted items (runs once, at "Done")
+  └─ POST /api/organize         Items -> categorized + priced items (on demand)
 
-link/                       Cloudflare Worker (separate, public) - "grocy-open"
-  └─ /list/:slug                Redirects a shared link into the Android app
-
-D1                          Persisted finalized lists
 OpenRouter (Gemini)         Extraction, categorization, price estimation
 ```
 
-The Worker and the Android app are two independent things that talk to each
-other over HTTPS/WebSocket - there's no web client anymore (there used to be
-a PWA; it's been retired in favor of the native app, which does everything
-better on Android: real voice recognition quality, no browser chrome, home
-screen widgets/shortcuts potential, etc.)
+The Worker exists only to keep the OpenRouter API key off the device - it's
+fully stateless, no database, nothing persisted server-side. Everything the
+app needs across sessions (last list, frequent-item quick-add suggestions)
+lives on-device (`mobile/src/lib/listHistory.ts`, backed by AsyncStorage).
+There's no shared/live list between two phones and no web client anymore
+(there used to be a PWA; it's been retired in favor of the native app, which
+does everything better on Android: real voice recognition quality, no browser
+chrome, home screen widgets/shortcuts potential, etc.) The app already holds
+the transcript locally while recording (that's what renders the live segment
+list on screen), so it just POSTs the whole thing once on "Done" - no need
+for a stateful server-side session for what's a single request/response.
 
 ## Backend setup (Cloudflare Worker)
 
@@ -51,29 +50,9 @@ npm install
 npx wrangler login
 ```
 
-Create your own D1 database (you can't reuse the one in this repo's
-`wrangler.jsonc` — it's tied to the original deployment):
+Set up your local secret:
 
 ```bash
-npx wrangler d1 create grocy-db
-```
-
-Copy the `database_id` from the output into `wrangler.jsonc`:
-
-```jsonc
-"d1_databases": [
-  {
-    "binding": "DB",
-    "database_name": "grocy-db",
-    "database_id": "<paste your database_id here>"
-  }
-]
-```
-
-Apply the schema locally, and set up your local secret:
-
-```bash
-npm run db:migrate:local
 cp .dev.vars.example .dev.vars
 # edit .dev.vars: OPENROUTER_API_KEY=sk-or-v1-...
 ```
@@ -87,17 +66,11 @@ npm run dev   # wrangler dev
 ### Deploying
 
 ```bash
-npm run db:migrate:remote                    # apply the D1 schema
 npx wrangler secret put OPENROUTER_API_KEY   # set the real secret on the Worker
 npm run deploy                               # wrangler deploy
 ```
 
-Live at `<worker-name>.<your-subdomain>.workers.dev`. There's a second,
-separate Worker to deploy too - see [App Links](#app-links-shared-links-open-the-app-not-a-browser) below:
-
-```bash
-cd link && npm install && npm run deploy
-```
+Live at `<worker-name>.<your-subdomain>.workers.dev`.
 
 **This deploys with no authentication by default** — anyone who finds the URL
 can use it (and trigger paid OpenRouter calls). For personal use, turn on
@@ -218,39 +191,6 @@ WhatsApp, USB) — the recipient opens it, allows "install unknown apps" for
 whatever app they used to open it, and taps install. Play Protect may warn
 it's not from the Play Store — expected for a sideloaded app.
 
-## App Links (shared links open the app, not a browser)
-
-Tapping a shared link (e.g. from a WhatsApp share) opens the Android app
-directly instead of a browser or a dead end. Two things were tried before
-landing on the current approach:
-
-- **A custom `grocy://` scheme** works for in-app navigation, but WhatsApp
-  (and most apps) don't auto-linkify custom schemes in message text - it
-  just shows as plain, unclickable text. Not shareable on its own.
-- **Android App Links** (OS-level verification that this app owns
-  `https://grocy.notesane.workers.dev/list/*`) would let a normal `https://`
-  link open the app directly - but the whole domain sits behind Cloudflare
-  Access, and Android's verification crawler can't complete an interactive
-  login, so verification always failed. Fixing that would have meant
-  carving a public hole in Access for `/.well-known/assetlinks.json`, which
-  felt like the wrong tradeoff for what it bought.
-
-**What's actually running**: a second, separate Cloudflare Worker (`link/`,
-deployed as `grocy-open`) with its own `grocy-open.notesane.workers.dev`
-subdomain that was never added to the Access policy in the first place, so
-it's plain public - no bypass, no dashboard changes, no login for whoever
-taps the link. It doesn't touch D1 or the app's API; it only knows the slug
-already in the URL and returns a tiny HTML page that redirects to
-`grocy://list/:slug` via Chrome's
-[`intent://`](https://developer.chrome.com/docs/android/intents/) mechanism,
-with a plain `grocy://` link as a manual fallback. Shared links use this
-domain (`mobile/src/lib/config.ts`'s `LINK_BASE_URL`), not the main app
-domain - the actual list data still only ever loads via the app's own
-authenticated call to the main Worker.
-
-If you fork this for your own package name, update `APP_PACKAGE` in
-`link/src/index.ts` to match `mobile/app.json`'s `android.package`.
-
 ## Adapting this for your own language/household
 
 - **`mobile/src/screens/RecordingScreen.tsx`** — `lang: "ta-IN"` passed to
@@ -279,6 +219,9 @@ If you fork this for your own package name, update `APP_PACKAGE` in
   confident about are simply left unpriced.
 - No automated test suite — verification throughout this project has been
   manual, on-device testing (matches the scale of a 2-user personal app).
+- List history (last list, frequent-item suggestions) is local to each
+  device, not shared between phones — uninstalling the app or clearing its
+  storage loses it.
 
 ## License
 

@@ -7,12 +7,6 @@
 export const API_HOST = "grocy.notesane.workers.dev";
 export const API_BASE_URL = `https://${API_HOST}`;
 
-// A separate, deliberately public (not Access-protected) Worker whose only
-// job is to redirect a tapped link into the app via grocy://list/:slug -
-// see link/ at the repo root. Shared links use this domain, not API_HOST,
-// so tapping one doesn't require completing an Access login first.
-export const LINK_BASE_URL = "https://grocy-open.notesane.workers.dev";
-
 const ACCESS_CLIENT_ID = process.env.EXPO_PUBLIC_CF_ACCESS_CLIENT_ID;
 const ACCESS_CLIENT_SECRET = process.env.EXPO_PUBLIC_CF_ACCESS_CLIENT_SECRET;
 
@@ -26,19 +20,4 @@ export function accessHeaders(): Record<string, string> {
 		"CF-Access-Client-Id": ACCESS_CLIENT_ID,
 		"CF-Access-Client-Secret": ACCESS_CLIENT_SECRET,
 	};
-}
-
-// partysocket only ever constructs its socket as `new WS(url, protocols)` -
-// there's no options passthrough for the WebSocket upgrade's headers. RN's
-// built-in WebSocket does support a 3rd constructor arg for headers though,
-// so this wrapper class (passed as the `WebSocket` option to useAgent) is
-// the hook point that gets the Access service-token headers onto the
-// upgrade request. If this doesn't survive Cloudflare Access's proxy in
-// testing, see the migration plan's Bypass + shared-secret fallback.
-export class AccessAwareWebSocket extends WebSocket {
-	constructor(url: string, protocols?: string | string[]) {
-		// @ts-expect-error - RN's WebSocket accepts a 3rd `options` arg (with
-		// `headers`) that the standard lib.dom.d.ts types don't know about.
-		super(url, protocols, { headers: accessHeaders() });
-	}
 }

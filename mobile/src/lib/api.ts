@@ -1,7 +1,5 @@
 import { accessHeaders, API_BASE_URL } from "./config";
-import type { SharedList } from "../shared/types";
-
-type FrequentItem = { name: string; quantity: string };
+import type { DraftItem, ListItem } from "../shared/types";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 	const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -12,26 +10,18 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 	return res.json() as Promise<T>;
 }
 
-export function getList(slug: string): Promise<SharedList> {
-	return apiFetch(`/api/list/${slug}`);
-}
-
-export function organizeList(slug: string): Promise<SharedList> {
-	return apiFetch(`/api/list/${slug}/organize`, { method: "POST" });
-}
-
-export function setItemTicked(slug: string, itemId: string, ticked: boolean): Promise<{ ok: true }> {
-	return apiFetch(`/api/list/${slug}/item/${itemId}`, {
-		method: "PATCH",
+export function extractList(transcript: string): Promise<{ items: DraftItem[] }> {
+	return apiFetch(`/api/extract`, {
+		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ ticked }),
+		body: JSON.stringify({ transcript }),
 	});
 }
 
-export function deleteItem(slug: string, itemId: string): Promise<{ ok: true }> {
-	return apiFetch(`/api/list/${slug}/item/${itemId}`, { method: "DELETE" });
-}
-
-export function getFrequentItems(): Promise<{ items: FrequentItem[] }> {
-	return apiFetch(`/api/frequent-items`);
+export function organizeItems(items: DraftItem[]): Promise<{ items: ListItem[] }> {
+	return apiFetch(`/api/organize`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ items }),
+	});
 }

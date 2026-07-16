@@ -19,25 +19,14 @@
 		"EXTRACTION_MODEL": "~google/gemini-pro-latest",
 		"EXTRACTION_REASONING_EFFORT": "low"
 	},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "grocy-db",
-			"database_id": "229f1f70-9515-4c23-a944-ace3e283da56"
-		}
-	],
-	"durable_objects": {
-		"bindings": [
-			{
-				"name": "ListSessionAgent",
-				"class_name": "ListSessionAgent"
-			}
-		]
-	},
 	"migrations": [
 		{
 			"tag": "v1",
 			"new_sqlite_classes": ["ListSessionAgent"]
+		},
+		{
+			"tag": "v2",
+			"deleted_classes": ["ListSessionAgent"]
 		}
 	],
 	"observability": {
