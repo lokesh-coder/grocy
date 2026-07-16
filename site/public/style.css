@@ -9,6 +9,23 @@
   --accent: #d97757;
   --accent-soft: #fbe8dd;
   --on-accent: #fff8f2;
+
+  /* Same "fun palette" the app uses for category color-coding, plus a
+     pastel-tinted version of each for backgrounds - keeps the landing page
+     visually related to the app instead of inventing a separate palette. */
+  --fun-coral: #d97757;
+  --fun-gold: #e3a23d;
+  --fun-sage: #6e9b72;
+  --fun-blue: #5a8fb5;
+  --fun-berry: #b65c7a;
+  --fun-violet: #8b7ec8;
+
+  --pastel-coral: #ffe4d6;
+  --pastel-gold: #fff2d9;
+  --pastel-sage: #e3f0e4;
+  --pastel-blue: #e1eef6;
+  --pastel-berry: #fbe4ea;
+  --pastel-violet: #ebe7f7;
 }
 
 * { box-sizing: border-box; }
@@ -96,3 +113,121 @@ a:hover { text-decoration: underline; }
   font-size: 13px;
   margin-bottom: 32px;
 }
+
+/* --- Landing page only (index.html) --- */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  padding: 56px 24px 40px;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(50px);
+  opacity: 0.6;
+  z-index: 0;
+}
+.blob-coral { width: 220px; height: 220px; background: var(--pastel-coral); top: -70px; left: -50px; animation: float-a 10s ease-in-out infinite; }
+.blob-blue { width: 190px; height: 190px; background: var(--pastel-blue); top: 10px; right: -60px; animation: float-b 12s ease-in-out infinite; }
+.blob-violet { width: 170px; height: 170px; background: var(--pastel-violet); bottom: -60px; left: 35%; animation: float-a 11s ease-in-out infinite reverse; }
+
+@keyframes float-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(12px, 18px); }
+}
+@keyframes float-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-16px, -12px); }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.badge-big {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  background: var(--accent);
+  border-radius: 28px;
+  font-size: 40px;
+  margin-bottom: 22px;
+  box-shadow: 0 14px 30px rgba(217, 119, 87, 0.32);
+}
+
+.hero .tagline { margin-bottom: 0; }
+
+.feature-grid {
+  display: grid;
+  gap: 14px;
+  margin: 12px 0 36px;
+}
+@media (min-width: 560px) {
+  .feature-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.feature-card {
+  border-radius: 20px;
+  padding: 22px;
+}
+.feature-card h3 { font-size: 16px; font-weight: 800; margin: 0 0 6px; }
+.feature-card p { font-size: 14px; margin: 0; opacity: 0.85; }
+
+.icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+.tint-coral { background: var(--pastel-coral); }
+.tint-gold { background: var(--pastel-gold); }
+.tint-sage { background: var(--pastel-sage); }
+.tint-blue { background: var(--pastel-blue); }
+.tint-berry { background: var(--pastel-berry); }
+.tint-violet { background: var(--pastel-violet); }
+
+.icon-coral { background: var(--fun-coral); }
+.icon-gold { background: var(--fun-gold); }
+.icon-sage { background: var(--fun-sage); }
+.icon-blue { background: var(--fun-blue); }
+.icon-berry { background: var(--fun-berry); }
+.icon-violet { background: var(--fun-violet); }
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 16px 0 40px;
+}
+.step {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.step-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--on-accent);
+}
+.step-title { font-weight: 800; font-size: 15px; }
+.step-desc { color: var(--text-muted); font-size: 14px; }
+
+.center { text-align: center; }
