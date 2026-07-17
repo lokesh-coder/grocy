@@ -221,17 +221,19 @@ export function RecordingScreen() {
 		setOrganizedItems(null);
 	}, []);
 
-	// Without this, the post-Done screen has nowhere to "pop back" to, so the
-	// hardware back button falls through to Android's default behavior and
-	// exits the app entirely instead of returning to a fresh recording view.
+	// Without this, the post-Done screen (or Settings) has nowhere to "pop
+	// back" to, so the hardware back button falls through to Android's
+	// default behavior and exits the app entirely instead of returning to
+	// the recording view.
 	useEffect(() => {
-		if (!finalized) return;
+		if (!finalized && !settingsVisible) return;
 		const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-			startNewList();
+			if (settingsVisible) setSettingsVisible(false);
+			else startNewList();
 			return true;
 		});
 		return () => sub.remove();
-	}, [finalized, startNewList]);
+	}, [finalized, settingsVisible, startNewList]);
 
 	async function handleWhatsAppShare() {
 		const text = buildShareText(finalizedItems, organizedItems);
