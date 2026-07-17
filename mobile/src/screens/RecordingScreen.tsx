@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
+import * as ExpoLinking from "expo-linking";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
 	BasketIcon,
@@ -34,6 +35,7 @@ import { getFrequentItems, getLastList, saveFinalizedList } from "../lib/listHis
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
 import { DEFAULT_MODEL_ID } from "../lib/models";
 import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey, isAutoProvisionedKey } from "../lib/openrouterAuth";
+import { buildShareLink, parseShareLink } from "../lib/shareLink";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
 import { categoryIcon } from "../lib/categoryIcons";
@@ -55,9 +57,11 @@ const SHARE_ACTIONS: Array<{ action: ShareAction; Icon: Icon; label: string; col
 	{ action: "share", Icon: ShareNetworkIcon, label: "பகிரவும்", color: colors.fun.berry },
 ];
 
-// There's no shared/live list anymore (see the backend simplification) - a
-// finished list is shared as plain formatted text over the OS share sheet,
-// not a link. Includes prices/total only once "Organize" has actually run.
+// There's no server-side shared list (see the backend simplification) -
+// the list itself is encoded straight into a URL (see shareLink.ts), so a
+// tap on the link either opens directly into the app or renders a
+// read-only view in the browser, with no lookup anywhere. Falls back to
+// text-only if the list is too large to fit safely in a URL.
 function buildShareText(items: DraftItem[], organizedItems: ListItem[] | null): string {
 	const lines = organizedItems
 		? organizedItems.map((item) => `• ${item.name} — ${item.quantity}${item.estimatedPrice != null ? ` · ₹${Math.round(item.estimatedPrice)}` : ""}`)
@@ -71,6 +75,9 @@ function buildShareText(items: DraftItem[], organizedItems: ListItem[] | null): 
 			text += `\n\nமதிப்பிடப்பட்ட மொத்தம்: ₹${Math.round(total)}`;
 		}
 	}
+
+	const link = buildShareLink(items, organizedItems);
+	if (link) text += `\n\n${link}`;
 
 	return text;
 }
@@ -111,6 +118,33 @@ export function RecordingScreen() {
 				// not critical - the empty state just won't show quick-add chips
 			});
 	}, [refreshConnectionState]);
+
+	// Opening a shared grocy://l?d=... link (from grocy.store/l, or a cold
+	// start via that link) shows the decoded list the same way "view last
+	// list" already does - it's just data that arrived from outside instead
+	// of from a local save.
+	useEffect(() => {
+		function handleUrl(url: string) {
+			const { queryParams } = ExpoLinking.parse(url);
+			const encoded = queryParams?.d;
+			if (typeof encoded !== "string") return;
+
+			const result = parseShareLink(encoded);
+			if (!result) {
+				Alert.alert("பட்டியலைத் திறக்க முடியவில்லை", "இந்த இணைப்பு சரியாக இல்லை.");
+				return;
+			}
+			setFinalizedItems(result.items);
+			setOrganizedItems(result.organizedItems);
+			setFinalized(true);
+		}
+
+		ExpoLinking.getInitialURL().then((url) => {
+			if (url) handleUrl(url);
+		});
+		const sub = Linking.addEventListener("url", (event) => handleUrl(event.url));
+		return () => sub.remove();
+	}, []);
 
 	// A free key can be auto-provisioned mid-request (see extract.ts) without
 	// ever going through handleConnect, so this is the one place that needs

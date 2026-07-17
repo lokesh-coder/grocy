@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="utf-8" />
+<title>Grocy — பட்டியல்</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Grocy</a>
+  <div id="content">
+    <h1>மளிகை பட்டியல்</h1>
+    <p>பட்டியல் ஏற்றப்படுகிறது…</p>
+  </div>
+</div>
+<script>
+  // Same encode/decode scheme as mobile/src/lib/shareLink.ts - the whole
+  // list lives in the URL itself, nothing is looked up from anywhere.
+  function base64UrlDecode(value) {
+    var base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    var padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    var binary = atob(padded);
+    return decodeURIComponent(escape(binary));
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var encoded = params.get("d");
+  var contentEl = document.getElementById("content");
+
+  if (!encoded) {
+    contentEl.innerHTML = "<h1>மளிகை பட்டியல்</h1><p>இணைப்பு தவறானது.</p>";
+  } else {
+    // Hand off to the app first - if it's installed, this navigates away
+    // before the render below is ever seen. If not, Chrome does nothing
+    // and the rendered list below stays visible as the fallback.
+    try {
+      var intentUrl = "intent://l?d=" + encodeURIComponent(encoded) + "#Intent;scheme=grocy;package=store.grocy.app;end";
+      window.location.href = intentUrl;
+    } catch (e) {}
+
+    try {
+      var payload = JSON.parse(base64UrlDecode(encoded));
+      var items = payload.items || [];
+      var organized = !!payload.o;
+
+      var html = "<h1>மளிகை பட்டியல்</h1>";
+      html += '<div class="card">';
+      var total = 0;
+      var pricedCount = 0;
+      items.forEach(function (item) {
+        var name = item[0], qty = item[1], price = organized ? item[3] : null;
+        var priceText = "";
+        if (price != null) {
+          priceText = " · ₹" + Math.round(price);
+          total += price;
+          pricedCount++;
+        }
+        html +=
+          '<p style="margin:0 0 10px;">' +
+          escapeHtml(name) +
+          " — " +
+          escapeHtml(qty) +
+          priceText +
+          "</p>";
+      });
+      html += "</div>";
+      if (pricedCount > 0) {
+        html += "<p>மதிப்பிடப்பட்ட மொத்தம்: ₹" + Math.round(total) + "</p>";
+      }
+      html += '<p class="updated">இந்தப் பட்டியலைத் திருத்தவும், பகிரவும் Grocy ஆப்பில் திறக்கவும்.</p>';
+      contentEl.innerHTML = html;
+    } catch (e) {
+      contentEl.innerHTML = "<h1>மளிகை பட்டியல்</h1><p>இந்தப் பட்டியலைப் புரிந்துகொள்ள முடியவில்லை.</p>";
+    }
+  }
+</script>
+</body>
+</html>
