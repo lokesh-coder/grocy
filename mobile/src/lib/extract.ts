@@ -7,6 +7,7 @@
 import { CATEGORY_IDS, type CategoryId } from "../shared/categories";
 import type { DraftItem, ListItem } from "../shared/types";
 import { ensureOpenRouterKey } from "./openrouterAuth";
+import { getCustomInstructions } from "./customInstructions";
 
 const REASONING_EFFORT = "low";
 
@@ -161,7 +162,12 @@ async function chatCompletion(model: string, maxTokens: number, systemPrompt: st
 export async function extractItems(transcript: string, model: string): Promise<DraftItem[]> {
 	if (!transcript.trim()) return [];
 
-	const result = await chatCompletion(model, 3000, SYSTEM_PROMPT, transcript, ITEMS_SCHEMA);
+	const custom = await getCustomInstructions();
+	const systemPrompt = custom
+		? `${SYSTEM_PROMPT}\n\nThe user has also given you these additional standing instructions - follow them too, alongside everything above:\n${custom}`
+		: SYSTEM_PROMPT;
+
+	const result = await chatCompletion(model, 3000, systemPrompt, transcript, ITEMS_SCHEMA);
 	const rawItems = parseItemsResponse(result);
 
 	return rawItems.map((item, index) => ({

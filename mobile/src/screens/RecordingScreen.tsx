@@ -8,7 +8,6 @@ import {
 	FilePlusIcon,
 	GearIcon,
 	MagicWandIcon,
-	QuestionIcon,
 	SealCheckIcon,
 	ShareNetworkIcon,
 	ShoppingBagIcon,
@@ -23,8 +22,7 @@ import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
-import { SettingsModal } from "../components/SettingsModal";
-import { HelpModal } from "../components/HelpModal";
+import { SettingsScreen } from "./SettingsScreen";
 import {
 	categorizeItems,
 	estimatePrices,
@@ -91,7 +89,6 @@ export function RecordingScreen() {
 	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
 	const [model, setModel] = useState(DEFAULT_MODEL_ID);
 	const [settingsVisible, setSettingsVisible] = useState(false);
-	const [helpVisible, setHelpVisible] = useState(false);
 	const [connected, setConnected] = useState(false);
 	const [connecting, setConnecting] = useState(false);
 	const [isAuto, setIsAuto] = useState(false);
@@ -135,7 +132,6 @@ export function RecordingScreen() {
 
 	async function handleSelectModel(id: string) {
 		setModel(id);
-		setSettingsVisible(false);
 		await setSelectedModel(id);
 	}
 
@@ -144,7 +140,6 @@ export function RecordingScreen() {
 		try {
 			await connectOpenRouter();
 			await refreshConnectionState();
-			setSettingsVisible(false);
 		} catch (error) {
 			Alert.alert("இணைக்க முடியவில்லை", error instanceof Error ? error.message : String(error));
 		} finally {
@@ -270,6 +265,21 @@ export function RecordingScreen() {
 		return { total, pricedCount: priced.length, totalCount: organizedItems.length };
 	}, [organizedItems]);
 
+	if (settingsVisible) {
+		return (
+			<SettingsScreen
+				onClose={() => setSettingsVisible(false)}
+				selectedModel={model}
+				onSelectModel={handleSelectModel}
+				connected={connected}
+				isAuto={isAuto}
+				connecting={connecting}
+				onConnect={handleConnect}
+				onDisconnect={handleDisconnect}
+			/>
+		);
+	}
+
 	if (finalizing) {
 		return (
 			<View style={[styles.container, styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -385,9 +395,6 @@ export function RecordingScreen() {
 							<Text style={styles.newListButtonText}>புதியது</Text>
 						</PressableScale>
 					)}
-					<PressableScale style={styles.settingsButton} onPress={() => setHelpVisible(true)}>
-						<QuestionIcon weight="regular" size={16} color={colors.textMuted} />
-					</PressableScale>
 					<PressableScale
 						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
 						onPress={() => setSettingsVisible(true)}
@@ -396,19 +403,6 @@ export function RecordingScreen() {
 					</PressableScale>
 				</View>
 			</View>
-
-			<SettingsModal
-				visible={settingsVisible}
-				selectedModel={model}
-				onSelect={handleSelectModel}
-				onClose={() => setSettingsVisible(false)}
-				connected={connected}
-				isAuto={isAuto}
-				connecting={connecting}
-				onConnect={handleConnect}
-				onDisconnect={handleDisconnect}
-			/>
-			<HelpModal visible={helpVisible} onClose={() => setHelpVisible(false)} />
 
 			{segments.length === 0 ? (
 				<View style={styles.emptyState}>
