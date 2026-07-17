@@ -11,6 +11,7 @@ import {
 	SealCheckIcon,
 	ShareNetworkIcon,
 	ShoppingBagIcon,
+	TrashSimpleIcon,
 	WarningCircleIcon,
 	WhatsappLogoIcon,
 	type Icon,
@@ -31,7 +32,7 @@ import {
 	OpenRouterLimitExceededError,
 	OpenRouterNotConnectedError,
 } from "../lib/extract";
-import { getFrequentItems, getLastList, saveFinalizedList } from "../lib/listHistory";
+import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
 import { DEFAULT_MODEL_ID } from "../lib/models";
 import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey, isAutoProvisionedKey } from "../lib/openrouterAuth";
@@ -223,6 +224,16 @@ export function RecordingScreen() {
 		}
 	}
 
+	function handleDeleteItem(id: string) {
+		const nextFinalized = finalizedItems.filter((item) => item.id !== id);
+		setFinalizedItems(nextFinalized);
+		setOrganizedItems((prev) => (prev ? prev.filter((item) => item.id !== id) : prev));
+		setLastList(nextFinalized);
+		updateLastList(nextFinalized).catch(() => {
+			// best-effort - the in-memory state above is already correct either way
+		});
+	}
+
 	const startNewList = useCallback(() => {
 		ExpoSpeechRecognitionModule.stop();
 		setSegments([]);
@@ -343,7 +354,7 @@ export function RecordingScreen() {
 						<View style={styles.itemListCard}>
 							{finalizedItems.map((item, i) => (
 								<PopIn key={item.id} delay={i * 40}>
-									<ItemRow item={item} divider={i < finalizedItems.length - 1} />
+									<ItemRow item={item} divider={i < finalizedItems.length - 1} onDelete={handleDeleteItem} />
 								</PopIn>
 							))}
 						</View>
@@ -360,7 +371,7 @@ export function RecordingScreen() {
 										<View style={styles.itemListCard}>
 											{group.items.map((item, i) => (
 												<PopIn key={item.id} delay={i * 30}>
-													<ItemRow item={item} divider={i < group.items.length - 1} />
+													<ItemRow item={item} divider={i < group.items.length - 1} onDelete={handleDeleteItem} />
 												</PopIn>
 											))}
 										</View>
@@ -463,11 +474,18 @@ export function RecordingScreen() {
 // A flagged item shows why (note and/or the reason it was guessed) as a
 // muted subtitle line under the name - the badge alone told the user
 // *something* needed a look, this tells them what.
-function ItemRow({ item, divider }: { item: DraftItem | ListItem; divider: boolean }) {
+function ItemRow({ item, divider, onDelete }: { item: DraftItem | ListItem; divider: boolean; onDelete: (id: string) => void }) {
 	const price = "estimatedPrice" in item && item.estimatedPrice != null ? item.estimatedPrice : null;
 	const subtextParts = [item.note, item.needsConfirmation && item.confirmationReason ? REASON_LABELS[item.confirmationReason] : null].filter(
 		(part): part is string => !!part,
 	);
+
+	function confirmDelete() {
+		Alert.alert("பொருளை நீக்கவா?", item.name, [
+			{ text: "ரத்து செய்", style: "cancel" },
+			{ text: "நீக்கு", style: "destructive", onPress: () => onDelete(item.id) },
+		]);
+	}
 
 	return (
 		<View style={[styles.itemRow, divider && styles.itemRowDivider]}>
@@ -482,6 +500,9 @@ function ItemRow({ item, divider }: { item: DraftItem | ListItem; divider: boole
 				{item.quantity}
 				{price != null && ` · ₹${Math.round(price)}`}
 			</Text>
+			<PressableScale onPress={confirmDelete} accessibilityLabel="நீக்கு" style={styles.deleteButton}>
+				<TrashSimpleIcon weight="regular" size={15} color={colors.textMuted} />
+			</PressableScale>
 		</View>
 	);
 }
@@ -742,6 +763,12 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		fontFamily: fontFamily.medium,
 		color: colors.textMuted,
+	},
+	deleteButton: {
+		width: 26,
+		height: 26,
+		alignItems: "center",
+		justifyContent: "center",
 	},
 	shareActionsRow: {
 		flexDirection: "row",

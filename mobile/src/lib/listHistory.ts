@@ -31,6 +31,20 @@ export async function getLastList(): Promise<DraftItem[] | null> {
 	return history[0]?.items ?? null;
 }
 
+// Overwrites the most recent entry in place (e.g. after deleting an item
+// post-finalize) instead of pushing a new one - a delete isn't a new list,
+// and unshifting here would double-count this list in the frequency
+// ranking below.
+export async function updateLastList(items: DraftItem[]): Promise<void> {
+	const history = await readHistory();
+	if (history.length === 0) {
+		history.unshift({ items, savedAt: Date.now() });
+	} else {
+		history[0] = { items, savedAt: history[0].savedAt };
+	}
+	await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
 // Exact-name grouping (same as the old SQL query) - most recent quantity per
 // name, ranked by how often it shows up across saved lists.
 export async function getFrequentItems(limit = 8): Promise<{ name: string; quantity: string }[]> {
