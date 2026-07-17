@@ -9,6 +9,12 @@ Personal/family-use Android app, now also on the Play Store. Almost no
 backend — one tiny endpoint, everything else happens on-device or directly
 against OpenRouter.
 
+Common commands are in the `Makefile` - run `make help` to see them
+(building the APK/AAB, deploying `provision/` or `site/`, typecheck, etc.)
+rather than remembering the underlying `expo`/`gradlew`/`wrangler` commands
+by hand. The rest of this README explains what each of those commands
+actually does, for whenever that's useful.
+
 ## Architecture
 
 ```
