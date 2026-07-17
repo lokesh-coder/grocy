@@ -8,6 +8,7 @@ import { CATEGORY_IDS, type CategoryId } from "../shared/categories";
 import type { ConfirmationReason, DraftItem, ListItem } from "../shared/types";
 import { ensureOpenRouterKey } from "./openrouterAuth";
 import { getCustomInstructions } from "./customInstructions";
+import { LIVE_MODEL_ID } from "./models";
 
 const REASONING_EFFORT = "low";
 
@@ -70,6 +71,39 @@ Examples (schema abbreviated to the fields that matter per example):
 3) Vague quantity + variants stay separate: transcript "Aavin blue ரெண்டு பாக்கெட். Aavin orange ஒரு பாக்கெட். ஏலக்காய் கொஞ்சம்." → three items: "Aavin blue பால்" (brand "Aavin", variant "blue", quantity "2 packet"), "Aavin orange பால்" (brand "Aavin", variant "orange", quantity "1 packet"), "ஏலக்காய்" (quantity "கொஞ்சம்", qtyValue null, qtyUnit null, needsConfirmation true, confirmationReason "vague_quantity").
 4) Pure chatter: transcript "டிவி சத்தம் குறை... சாப்பிட்டியா நீ?" → empty items list.`;
 
+// Shared by the full extraction schema and the live ops schema below - one
+// item's shape shouldn't drift between the two call sites.
+const ITEM_SCHEMA_PROPERTIES = {
+	name: { type: "string" },
+	brand: { type: ["string", "null"] },
+	variant: { type: ["string", "null"] },
+	quantity: { type: "string" },
+	qtyValue: { type: ["number", "null"] },
+	qtyUnit: { type: ["string", "null"] },
+	qtySpoken: { type: "string" },
+	note: { type: ["string", "null"] },
+	priceNote: { type: ["string", "null"] },
+	needsConfirmation: { type: "boolean" },
+	confirmationReason: {
+		type: ["string", "null"],
+		enum: ["vague_quantity", "inferred_unit", "default_quantity", "uncertain_item_name", "uncertain_brand", "ambiguous_merge", null],
+	},
+} as const;
+
+const ITEM_SCHEMA_REQUIRED = [
+	"name",
+	"brand",
+	"variant",
+	"quantity",
+	"qtyValue",
+	"qtyUnit",
+	"qtySpoken",
+	"note",
+	"priceNote",
+	"needsConfirmation",
+	"confirmationReason",
+];
+
 const ITEMS_SCHEMA = {
 	name: "grocery_items",
 	strict: true,
@@ -80,35 +114,8 @@ const ITEMS_SCHEMA = {
 				type: "array",
 				items: {
 					type: "object",
-					properties: {
-						name: { type: "string" },
-						brand: { type: ["string", "null"] },
-						variant: { type: ["string", "null"] },
-						quantity: { type: "string" },
-						qtyValue: { type: ["number", "null"] },
-						qtyUnit: { type: ["string", "null"] },
-						qtySpoken: { type: "string" },
-						note: { type: ["string", "null"] },
-						priceNote: { type: ["string", "null"] },
-						needsConfirmation: { type: "boolean" },
-						confirmationReason: {
-							type: ["string", "null"],
-							enum: ["vague_quantity", "inferred_unit", "default_quantity", "uncertain_item_name", "uncertain_brand", "ambiguous_merge", null],
-						},
-					},
-					required: [
-						"name",
-						"brand",
-						"variant",
-						"quantity",
-						"qtyValue",
-						"qtyUnit",
-						"qtySpoken",
-						"note",
-						"priceNote",
-						"needsConfirmation",
-						"confirmationReason",
-					],
+					properties: ITEM_SCHEMA_PROPERTIES,
+					required: ITEM_SCHEMA_REQUIRED,
 					additionalProperties: false,
 				},
 			},
@@ -216,6 +223,18 @@ export async function extractItems(transcript: string, model: string): Promise<D
 
 	return rawItems.map((item, index) => ({
 		id: `item-${index}`,
+		...toDraftItemFields(item),
+	}));
+}
+
+function nullableString(value: unknown): string | null {
+	if (typeof value !== "string") return null;
+	const trimmed = value.trim();
+	return trimmed ? trimmed : null;
+}
+
+function toDraftItemFields(item: RawItem): Omit<DraftItem, "id"> {
+	return {
 		name: String(item.name ?? "").trim(),
 		brand: nullableString(item.brand),
 		variant: nullableString(item.variant),
@@ -229,13 +248,128 @@ export async function extractItems(transcript: string, model: string): Promise<D
 		priceNote: nullableString(item.priceNote),
 		needsConfirmation: Boolean(item.needsConfirmation),
 		confirmationReason: isConfirmationReason(item.confirmationReason) ? item.confirmationReason : null,
-	}));
+	};
 }
 
-function nullableString(value: unknown): string | null {
-	if (typeof value !== "string") return null;
-	const trimmed = value.trim();
-	return trimmed ? trimmed : null;
+// --- Live, per-segment extraction (see RecordingScreen.tsx) ---
+//
+// While the person is still dictating, each finalized speech segment is
+// parsed individually against the list-so-far and turned into operations
+// (add/update/remove) instead of re-parsing the whole transcript - this is
+// what lets items tick into view as they're spoken instead of only
+// appearing after "Done". Deliberately smaller/cheaper than SYSTEM_PROMPT
+// above (no pricing edge cases, two examples instead of four) since it runs
+// once per segment on a fast/cheap model - the full prompt still runs once,
+// on the stronger model, when the mic stops (extractItems), so anything
+// this pass gets wrong is still caught by an authoritative final pass.
+const OPS_SYSTEM_PROMPT = `You maintain a live Tamil grocery list ledger while someone dictates it out loud, one short speech segment at a time. You'll get the current committed list (each line "[id] name — quantity") and the newest segment they just said. Decide what operations to apply - don't reprocess the whole list, just react to this one new segment.
+
+Rules:
+- ADD a new item for something not already on the list.
+- UPDATE an existing item (same id) when this segment corrects its quantity ("இல்ல முக்கால் கிலோ" right after a wrong amount - replace, don't add) or adds more to it ("இன்னும் அரை கிலோ" - add to the existing quantity, e.g. 1 kg + 1/2 kg = "1 1/2 kg"). For an update, give the item's complete new state, not just the changed field.
+- REMOVE an existing item (same id) when the person explicitly cancels it ("வேணாம்", "அது வேண்டாம்", "எடுத்துடு").
+- A segment can produce multiple operations (e.g. two items mentioned in one breath) or zero (filler, chatter, or speech not about the list - "ம்ம்", talking to someone else, TV). Never guess an operation just to produce output.
+- The same base product with a different brand/variant/pack size than what's already on the list is a separate ADD, not an update of the existing line (e.g. "Aavin orange" after an existing "Aavin blue" line).
+- A bare number with no unit takes its unit from how that item is realistically sold (liquids in ml/L, loose solids in g/kg, countable items as "count") - flag needsConfirmation true, confirmationReason "inferred_unit". If genuinely no quantity was said for a new item, use quantity "1" and flag confirmationReason "default_quantity".
+- Vague quantities ("கொஞ்சம்") are a real answer - keep the quantity display as spoken, qtyValue/qtyUnit null, flag confirmationReason "vague_quantity".
+- Keep item names in Tamil as spoken, except phonetic English/brand transliterations ("ஹார்லிக்ஸ்" → "Horlicks") which get written in English.
+- Common brands, use these spellings on a confident phonetic match: Aavin, Arokya, Hatsun, Milky Mist, Gold Winner, Idhayam, Fortune, Sakthi, Aachi, MTR, 3 Roses, AVT, Bru, Aashirvaad. If unsure, keep the name as heard and flag confirmationReason "uncertain_brand".
+- If the person attaches a purpose/description ("சாம்பார்க்கு", "நல்லா பழுத்தது"), keep it in note.
+
+This is a live, incremental pass - it doesn't need to be perfect, a slower full re-check runs once dictation finishes.
+
+Example: committed list has "[live-0] தக்காளி — 1 kg". Segment "இன்னும் அரை கிலோ" → one UPDATE on live-0, quantity "1 1/2 kg", qtyValue 1.5.
+Example: committed list is empty. Segment "எண்ணெய் நூறு" → one ADD, name "எண்ணெய்", quantity "100 ml", qtyValue 100, qtyUnit "ml", needsConfirmation true, confirmationReason "inferred_unit".`;
+
+const OPS_SCHEMA = {
+	name: "list_operations",
+	strict: true,
+	schema: {
+		type: "object",
+		properties: {
+			operations: {
+				type: "array",
+				items: {
+					type: "object",
+					properties: {
+						op: { type: "string", enum: ["add", "update", "remove"] },
+						id: { type: ["string", "null"] },
+						item: {
+							type: ["object", "null"],
+							properties: ITEM_SCHEMA_PROPERTIES,
+							required: ITEM_SCHEMA_REQUIRED,
+							additionalProperties: false,
+						},
+					},
+					required: ["op", "id", "item"],
+					additionalProperties: false,
+				},
+			},
+		},
+		required: ["operations"],
+		additionalProperties: false,
+	},
+};
+
+export type ListOperation = {
+	op: "add" | "update" | "remove";
+	id: string | null;
+	item: Omit<DraftItem, "id"> | null;
+};
+
+function serializeCommittedList(items: DraftItem[]): string {
+	if (items.length === 0) return "(இதுவரை பொருட்கள் இல்லை)";
+	return items.map((item) => `[${item.id}] ${item.name} — ${item.quantity}`).join("\n");
+}
+
+export async function parseSegmentOps(committed: DraftItem[], segment: string): Promise<ListOperation[]> {
+	if (!segment.trim()) return [];
+
+	const custom = await getCustomInstructions();
+	const systemPrompt = custom
+		? `${OPS_SYSTEM_PROMPT}\n\nThe user has also given these additional standing instructions - follow them too:\n${custom}`
+		: OPS_SYSTEM_PROMPT;
+	const userContent = `Committed list:\n${serializeCommittedList(committed)}\n\nNew segment: "${segment}"`;
+
+	const result = await chatCompletion(LIVE_MODEL_ID, 700, systemPrompt, userContent, OPS_SCHEMA);
+	return parseOpsResponse(result);
+}
+
+// Pure reducer, no network - applying the operations is separate from
+// fetching them so RecordingScreen can call this synchronously once ops
+// come back, against whatever the live list has become since the call
+// started (see liveItemsRef there).
+export function applyOperations(items: DraftItem[], ops: ListOperation[], nextId: () => string): DraftItem[] {
+	let next = items;
+	for (const op of ops) {
+		if (op.op === "add" && op.item) {
+			next = [...next, { id: nextId(), ...op.item }];
+		} else if (op.op === "update" && op.id && op.item) {
+			const item = op.item;
+			next = next.map((existing) => (existing.id === op.id ? { id: existing.id, ...item } : existing));
+		} else if (op.op === "remove" && op.id) {
+			next = next.filter((existing) => existing.id !== op.id);
+		}
+	}
+	return next;
+}
+
+function parseOpsResponse(result: unknown): ListOperation[] {
+	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
+	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
+	const operations = (parsed as { operations?: unknown })?.operations;
+	const entries = Array.isArray(operations) ? (operations as Array<{ op?: unknown; id?: unknown; item?: unknown }>) : [];
+
+	const ops: ListOperation[] = [];
+	for (const entry of entries) {
+		if (entry.op !== "add" && entry.op !== "update" && entry.op !== "remove") continue;
+		const id = typeof entry.id === "string" ? entry.id : null;
+		const item = entry.item && typeof entry.item === "object" ? toDraftItemFields(entry.item as RawItem) : null;
+		if (entry.op !== "remove" && !item) continue;
+		if (entry.op !== "add" && !id) continue;
+		ops.push({ op: entry.op, id, item });
+	}
+	return ops;
 }
 
 export async function categorizeItems(items: DraftItem[], model: string): Promise<ListItem[]> {

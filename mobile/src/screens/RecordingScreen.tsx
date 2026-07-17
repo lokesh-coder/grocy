@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -17,7 +17,7 @@ import {
 	type Icon,
 } from "phosphor-react-native";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
-import { SegmentsList } from "../components/SegmentsList";
+import { LiveLedger } from "../components/LiveLedger";
 import { MicButton } from "../components/MicButton";
 import { LoaderDots } from "../components/LoaderDots";
 import { PopIn } from "../components/PopIn";
@@ -26,11 +26,13 @@ import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
 import { SettingsScreen } from "./SettingsScreen";
 import {
+	applyOperations,
 	categorizeItems,
 	estimatePrices,
 	extractItems,
 	OpenRouterLimitExceededError,
 	OpenRouterNotConnectedError,
+	parseSegmentOps,
 } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
@@ -91,6 +93,17 @@ export function RecordingScreen() {
 	const [segments, setSegments] = useState<string[]>([]);
 	const [listening, setListening] = useState(false);
 	const [micError, setMicError] = useState<string | null>(null);
+	// Live ledger, ticking in while the person is still talking (see
+	// extract.ts's parseSegmentOps) - liveItemsRef mirrors liveItems so the
+	// sequential ops queue below always reads the latest state instead of a
+	// stale closure. opsChainRef serializes segment calls so two in-flight
+	// ops results can't race and clobber each other applying against the
+	// same base state.
+	const [liveItems, setLiveItems] = useState<DraftItem[]>([]);
+	const [pendingSegments, setPendingSegments] = useState<string[]>([]);
+	const liveItemsRef = useRef<DraftItem[]>([]);
+	const opsChainRef = useRef<Promise<void>>(Promise.resolve());
+	const liveIdCounterRef = useRef(0);
 	const [finalizing, setFinalizing] = useState(false);
 	const [finalized, setFinalized] = useState(false);
 	const [finalizedItems, setFinalizedItems] = useState<DraftItem[]>([]);
@@ -163,9 +176,43 @@ export function RecordingScreen() {
 		await refreshConnectionState();
 	}
 
-	const addSegment = useCallback((text: string) => {
-		setSegments((prev) => [...prev, text]);
-	}, []);
+	useEffect(() => {
+		liveItemsRef.current = liveItems;
+	}, [liveItems]);
+
+	const nextLiveId = useCallback(() => `live-${liveIdCounterRef.current++}`, []);
+
+	// Runs one segment's ops call and applies the result - queued via
+	// opsChainRef in addSegment below so calls never overlap. Failures are
+	// swallowed on purpose: a segment that fails to parse live just never
+	// ticks into the ledger, but it's still in `segments` and gets caught by
+	// the authoritative full pass in handleDone, so nothing is lost.
+	const runSegmentOps = useCallback(
+		async (segmentText: string) => {
+			try {
+				const ops = await parseSegmentOps(liveItemsRef.current, segmentText);
+				if (ops.length > 0) setLiveItems((prev) => applyOperations(prev, ops, nextLiveId));
+			} catch (error) {
+				console.error("Live segment parse failed - the final pass on Done will still catch it", error);
+			} finally {
+				setPendingSegments((prev) => {
+					const index = prev.indexOf(segmentText);
+					if (index === -1) return prev;
+					return [...prev.slice(0, index), ...prev.slice(index + 1)];
+				});
+			}
+		},
+		[nextLiveId],
+	);
+
+	const addSegment = useCallback(
+		(text: string) => {
+			setSegments((prev) => [...prev, text]);
+			setPendingSegments((prev) => [...prev, text]);
+			opsChainRef.current = opsChainRef.current.then(() => runSegmentOps(text));
+		},
+		[runSegmentOps],
+	);
 
 	useSpeechRecognitionEvent("start", () => setListening(true));
 	useSpeechRecognitionEvent("end", () => setListening(false));
@@ -237,6 +284,10 @@ export function RecordingScreen() {
 	const startNewList = useCallback(() => {
 		ExpoSpeechRecognitionModule.stop();
 		setSegments([]);
+		setLiveItems([]);
+		setPendingSegments([]);
+		liveIdCounterRef.current = 0;
+		opsChainRef.current = Promise.resolve();
 		setFinalized(false);
 		setFinalizedItems([]);
 		setOrganizedItems(null);
@@ -446,7 +497,7 @@ export function RecordingScreen() {
 					)}
 				</View>
 			) : (
-				<SegmentsList segments={segments} />
+				<LiveLedger items={liveItems} pendingSegments={pendingSegments} />
 			)}
 
 			{micError && <Text style={styles.error}>{micError}</Text>}
