@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Baloo+Thambi+2:wght@700;800&family=Noto+Sans+Tamil:wght@500;600&display=swap');
+
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; }
+
+.banner {
+  position: relative;
+  width: 1024px;
+  height: 500px;
+  background: #B7CBA0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  font-family: 'Noto Sans Tamil', sans-serif;
+}
+
+.ring { position: absolute; border-radius: 50%; border: 40px solid rgba(255,255,255,0.32); }
+.ring-1 { width: 360px; height: 360px; top: -160px; left: -140px; }
+.ring-2 { width: 300px; height: 300px; bottom: -170px; right: -120px; }
+
+.content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 64px;
+}
+
+.left { max-width: 560px; }
+
+.wordmark {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 700;
+  font-size: 88px;
+  color: #1E3A1B;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+
+.headline {
+  font-family: 'Baloo Thambi 2', sans-serif;
+  font-weight: 800;
+  font-size: 40px;
+  color: #1E3A1B;
+  line-height: 1.15;
+  margin-bottom: 10px;
+}
+
+.sub {
+  font-weight: 600;
+  font-size: 22px;
+  color: #33421F;
+}
+
+.phone-mock {
+  transform: rotate(-4deg);
+  width: 220px;
+  flex-shrink: 0;
+}
+.phone-outer { background: #1E3A1B; border-radius: 32px; padding: 9px; }
+.phone-inner { background: #F1EFE5; border-radius: 24px; padding: 20px 22px; }
+.phone-title { font-family: 'Baloo Thambi 2', sans-serif; font-weight: 700; font-size: 19px; color: #1E3A1B; }
+.phone-sub { font-size: 13px; color: #5F5E5A; margin: 4px 0 12px; }
+.tags { display: flex; gap: 7px; margin-bottom: 14px; }
+.tag { font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 11px; }
+.tag-lime { background: #C4F135; color: #173404; }
+.tag-pink { background: #F4C0D1; color: #4B1528; }
+.item { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 15px; color: #1E3A1B; }
+.item:last-child { margin-bottom: 0; }
+.item.done { color: #B4B2A9; text-decoration: line-through; }
+.dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #1E3A1B; flex-shrink: 0; }
+.dot-filled { background: #C4F135; border-color: #C4F135; }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="ring ring-1"></div>
+    <div class="ring ring-2"></div>
+    <div class="content">
+      <div class="left">
+        <div class="wordmark">grocy</div>
+        <div class="headline">தமிழில் பேசுங்கள்.<br/>மளிகை பட்டியல் தயார்.</div>
+        <div class="sub">குரல் மூலம் · 100% இலவசம் · 0 சேவையகம்</div>
+      </div>
+      <div class="phone-mock">
+        <div class="phone-outer">
+          <div class="phone-inner">
+            <div class="phone-title">இன்றைய பட்டியல்</div>
+            <div class="phone-sub">8 பொருட்கள் · 3 முடிந்தது</div>
+            <div class="tags">
+              <span class="tag tag-lime">காய்கறி</span>
+              <span class="tag tag-pink">பால்</span>
+            </div>
+            <div class="item"><span class="dot"></span>வாழைப்பழம்</div>
+            <div class="item done"><span class="dot dot-filled"></span>பால்</div>
+            <div class="item"><span class="dot"></span>ரொட்டி</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

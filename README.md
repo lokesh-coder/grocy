@@ -139,6 +139,31 @@ WhatsApp, USB) — the recipient opens it, allows "install unknown apps" for
 whatever app they used to open it, and taps install. Play Protect may warn
 it's not from the Play Store — expected for a sideloaded app.
 
+## Building an AAB (for Play Store submission)
+
+Play Console requires an `.aab` (Android App Bundle), not an `.apk`. Same
+signing setup as above, but **don't** restrict `reactNativeArchitectures`
+here - unlike a sideloaded APK, an App Bundle is supposed to contain every
+architecture; Play's own dynamic delivery slices out the right one per
+device at install time, so restricting it at build time would just break
+installs on devices Play didn't get to optimize for.
+
+```bash
+cd mobile
+npx expo prebuild --platform android --clean
+cd android
+./gradlew bundleRelease \
+  -Pandroid.enableMinifyInReleaseBuilds=true \
+  -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+```
+
+Output: `mobile/android/app/build/outputs/bundle/release/app-release.aab`
+(~57MB - larger than the arm64-only APK since it carries all 4
+architectures, but Play only ever ships one per device). Upload this
+directly in Play Console; the first upload prompts you to opt into Play App
+Signing (accept it - Google re-signs the app for distribution using this
+upload as the "upload key").
+
 ## Adapting this for your own language/household
 
 - **`mobile/src/screens/RecordingScreen.tsx`** — `lang: "ta-IN"` passed to
