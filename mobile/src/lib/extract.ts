@@ -354,6 +354,47 @@ export function applyOperations(items: DraftItem[], ops: ListOperation[], nextId
 	return next;
 }
 
+// --- Silent reconciliation (see RecordingScreen.tsx's handleDone) ---
+//
+// The live ledger already shows a list by the time "Done" runs the
+// authoritative full-transcript pass - swapping it wholesale would make the
+// live feature feel like it was only ever showing a draft. Instead, match
+// the authoritative result back onto the live items by name and report only
+// what's actually different, so the common case (the two agree) is
+// invisible - the caller only needs to touch the rows in changedIds.
+export function reconcileWithLive(live: DraftItem[], authoritative: DraftItem[]): { merged: DraftItem[]; changedIds: string[] } {
+	const usedAuthoritativeIndexes = new Set<number>();
+	const changedIds: string[] = [];
+	const merged: DraftItem[] = [];
+
+	for (const liveItem of live) {
+		const matchIndex = authoritative.findIndex((item, index) => !usedAuthoritativeIndexes.has(index) && item.name === liveItem.name);
+		if (matchIndex === -1) {
+			// The authoritative pass dropped this item (mis-heard, cancelled).
+			changedIds.push(liveItem.id);
+			continue;
+		}
+		usedAuthoritativeIndexes.add(matchIndex);
+		const authoritativeItem = authoritative[matchIndex];
+		if (!itemsMatch(liveItem, authoritativeItem)) changedIds.push(liveItem.id);
+		merged.push({ ...authoritativeItem, id: liveItem.id });
+	}
+
+	authoritative.forEach((item, index) => {
+		if (usedAuthoritativeIndexes.has(index)) return;
+		// Something the live pass missed entirely.
+		const id = `reconciled-${index}-${Date.now()}`;
+		merged.push({ ...item, id });
+		changedIds.push(id);
+	});
+
+	return { merged, changedIds };
+}
+
+function itemsMatch(a: DraftItem, b: DraftItem): boolean {
+	return a.quantity === b.quantity && a.brand === b.brand && a.variant === b.variant && a.note === b.note && a.needsConfirmation === b.needsConfirmation;
+}
+
 function parseOpsResponse(result: unknown): ListOperation[] {
 	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
 	const parsed = typeof content === "string" ? safeJsonParse(content) : content;

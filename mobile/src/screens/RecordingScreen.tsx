@@ -3,7 +3,6 @@ import { Alert, BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
 	BasketIcon,
-	ClipboardTextIcon,
 	ClockIcon,
 	FilePlusIcon,
 	GearIcon,
@@ -17,7 +16,6 @@ import {
 	type Icon,
 } from "phosphor-react-native";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
-import { LiveLedger } from "../components/LiveLedger";
 import { MicButton } from "../components/MicButton";
 import { LoaderDots } from "../components/LoaderDots";
 import { PopIn } from "../components/PopIn";
@@ -33,6 +31,7 @@ import {
 	OpenRouterLimitExceededError,
 	OpenRouterNotConnectedError,
 	parseSegmentOps,
+	reconcileWithLive,
 } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
@@ -104,9 +103,15 @@ export function RecordingScreen() {
 	const liveItemsRef = useRef<DraftItem[]>([]);
 	const opsChainRef = useRef<Promise<void>>(Promise.resolve());
 	const liveIdCounterRef = useRef(0);
-	const [finalizing, setFinalizing] = useState(false);
+	// finalized: mic session ended, controls switch from mic/Done to
+	// Organize/share - the list itself stays liveItems throughout, no screen
+	// swap. reconciling/highlightedIds back the silent reconciliation pass
+	// (see handleDone) - the authoritative full-transcript result is diffed
+	// against liveItems and only the rows that actually changed are flagged,
+	// instead of replacing the whole visible list.
 	const [finalized, setFinalized] = useState(false);
-	const [finalizedItems, setFinalizedItems] = useState<DraftItem[]>([]);
+	const [reconciling, setReconciling] = useState(false);
+	const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
 	const [organizedItems, setOrganizedItems] = useState<ListItem[] | null>(null);
 	const [organizing, setOrganizing] = useState(false);
 	const [lastList, setLastList] = useState<DraftItem[] | null>(null);
@@ -240,28 +245,46 @@ export function RecordingScreen() {
 		ExpoSpeechRecognitionModule.start({ lang: "ta-IN", continuous: true, interimResults: true });
 	}
 
+	// "Done" only visibly stops the mic - the list already on screen (built
+	// live) doesn't get replaced. The authoritative full-transcript pass
+	// still runs, but silently: reconcileWithLive diffs its result against
+	// what's showing and only the rows that actually changed get touched
+	// (and briefly highlighted) - if it agrees with the live parse, which is
+	// the common case, nothing visibly happens at all.
 	async function handleDone() {
 		if (listening) ExpoSpeechRecognitionModule.stop();
-		setFinalizing(true);
+		setFinalized(true);
+		// Let any segment ops call still in flight settle first - otherwise it
+		// could resolve after reconciliation and silently re-apply on top of
+		// the just-reconciled list, undoing what reconciliation just fixed.
+		await opsChainRef.current;
+		const current = liveItemsRef.current;
+		await saveFinalizedList(current);
+		setLastList(current);
+		await refreshConnectionState(); // a key may have just been auto-provisioned
+
+		setReconciling(true);
 		try {
-			const items = await extractItems(segments.join(" "), model);
-			await saveFinalizedList(items);
-			setLastList(items);
-			setFinalizedItems(items);
-			setOrganizedItems(null);
-			setFinalized(true);
-			await refreshConnectionState(); // a key may have just been auto-provisioned
+			const authoritative = await extractItems(segments.join(" "), model);
+			const { merged, changedIds } = reconcileWithLive(liveItemsRef.current, authoritative);
+			setLiveItems(merged);
+			await updateLastList(merged);
+			setLastList(merged);
+			if (changedIds.length > 0) {
+				setHighlightedIds(changedIds);
+				setTimeout(() => setHighlightedIds([]), 1800);
+			}
 		} catch (error) {
 			handleOpenRouterError(error);
 		} finally {
-			setFinalizing(false);
+			setReconciling(false);
 		}
 	}
 
 	async function handleOrganize() {
 		setOrganizing(true);
 		try {
-			const categorized = await categorizeItems(finalizedItems, model);
+			const categorized = await categorizeItems(liveItems, model);
 			const priced = await estimatePrices(categorized, model);
 			setOrganizedItems(priced);
 		} catch (error) {
@@ -272,11 +295,11 @@ export function RecordingScreen() {
 	}
 
 	function handleDeleteItem(id: string) {
-		const nextFinalized = finalizedItems.filter((item) => item.id !== id);
-		setFinalizedItems(nextFinalized);
+		const next = liveItems.filter((item) => item.id !== id);
+		setLiveItems(next);
 		setOrganizedItems((prev) => (prev ? prev.filter((item) => item.id !== id) : prev));
-		setLastList(nextFinalized);
-		updateLastList(nextFinalized).catch(() => {
+		setLastList(next);
+		updateLastList(next).catch(() => {
 			// best-effort - the in-memory state above is already correct either way
 		});
 	}
@@ -289,7 +312,8 @@ export function RecordingScreen() {
 		liveIdCounterRef.current = 0;
 		opsChainRef.current = Promise.resolve();
 		setFinalized(false);
-		setFinalizedItems([]);
+		setReconciling(false);
+		setHighlightedIds([]);
 		setOrganizedItems(null);
 	}, []);
 
@@ -308,12 +332,12 @@ export function RecordingScreen() {
 	}, [finalized, settingsVisible, startNewList]);
 
 	async function handleWhatsAppShare() {
-		const text = buildShareText(finalizedItems, organizedItems);
+		const text = buildShareText(liveItems, organizedItems);
 		await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`);
 	}
 
 	async function handleShare() {
-		const text = buildShareText(finalizedItems, organizedItems);
+		const text = buildShareText(liveItems, organizedItems);
 		await Share.share({ message: text });
 	}
 
@@ -354,31 +378,65 @@ export function RecordingScreen() {
 		);
 	}
 
-	if (finalizing) {
-		return (
-			<View style={[styles.container, styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-				<StatusBar barStyle="dark-content" />
-				<View style={styles.finalizingDots}>
-					<LoaderDots variant="fun" />
+	return (
+		<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
+			<StatusBar barStyle="dark-content" />
+			<View style={styles.header}>
+				<View style={styles.headerLeft}>
+					<ShoppingBagIcon weight="duotone" size={18} color={colors.accent} />
+					<Text style={styles.title}>மளிகை பட்டியல்</Text>
+					{reconciling && (
+						<View style={styles.reconcilingDots}>
+							<LoaderDots variant="fun" />
+						</View>
+					)}
 				</View>
-				<Text style={styles.finalizingText}>பட்டியலை உருவாக்குகிறேன்…</Text>
+				<View style={styles.headerRight}>
+					{hasContent && (
+						<PressableScale style={styles.newListButton} onPress={startNewList}>
+							<FilePlusIcon weight="regular" size={14} color={colors.text} />
+							<Text style={styles.newListButtonText}>புதியது</Text>
+						</PressableScale>
+					)}
+					<PressableScale
+						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
+						onPress={() => setSettingsVisible(true)}
+					>
+						<GearIcon weight="regular" size={16} color={connected ? colors.textMuted : colors.accent} />
+					</PressableScale>
+				</View>
 			</View>
-		);
-	}
 
-	if (finalized) {
-		return (
-			<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
-				<StatusBar barStyle="dark-content" />
-				<View style={styles.header}>
-					<View style={styles.headerLeft}>
-						<ClipboardTextIcon weight="duotone" size={18} color={colors.accent} />
-						<Text style={styles.title}>முடிந்தது! 🎉</Text>
-					</View>
+			{!hasContent ? (
+				<View style={styles.emptyState}>
+					<BasketIcon weight="regular" size={44} color={colors.accent} />
+					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
+					{frequentItems.length > 0 && (
+						<View style={styles.chipsRow}>
+							{frequentItems.map((item) => (
+								<PressableScale key={item.name} style={styles.chip} onPress={() => addSegment(`${item.name} ${item.quantity} வேணும்.`)}>
+									<Text style={styles.chipText}>{item.name}</Text>
+								</PressableScale>
+							))}
+						</View>
+					)}
+					{lastList && lastList.length > 0 && (
+						<PressableScale
+							style={styles.lastListLink}
+							onPress={() => {
+								setLiveItems(lastList);
+								setOrganizedItems(null);
+								setFinalized(true);
+							}}
+						>
+							<ClockIcon weight="regular" size={13} color={colors.textMuted} />
+							<Text style={styles.lastListLinkText}>கடைசி பட்டியலைப் பார்</Text>
+						</PressableScale>
+					)}
 				</View>
-
+			) : (
 				<ScrollView style={styles.itemScroll} contentContainerStyle={styles.itemScrollContent}>
-					{!organizedItems && (
+					{finalized && !organizedItems && (
 						<AccentButton onPress={handleOrganize} disabled={organizing} style={styles.organizeButton}>
 							{organizing ? (
 								<>
@@ -403,9 +461,23 @@ export function RecordingScreen() {
 
 					{!organizedItems ? (
 						<View style={styles.itemListCard}>
-							{finalizedItems.map((item, i) => (
-								<PopIn key={item.id} delay={i * 40}>
-									<ItemRow item={item} divider={i < finalizedItems.length - 1} onDelete={handleDeleteItem} />
+							{liveItems.map((item, i) => (
+								<PopIn key={item.id} delay={i * 20}>
+									<ItemRow
+										item={item}
+										divider={i < liveItems.length - 1 || pendingSegments.length > 0}
+										onDelete={listening ? undefined : handleDeleteItem}
+										highlighted={highlightedIds.includes(item.id)}
+									/>
+								</PopIn>
+							))}
+							{pendingSegments.map((segment, i) => (
+								<PopIn key={`pending-${i}`}>
+									<View style={[styles.itemRow, i < pendingSegments.length - 1 && styles.itemRowDivider]}>
+										<Text style={styles.ghost} numberOfLines={1}>
+											{segment}
+										</Text>
+									</View>
 								</PopIn>
 							))}
 						</View>
@@ -432,7 +504,28 @@ export function RecordingScreen() {
 						})
 					)}
 				</ScrollView>
+			)}
 
+			{micError && <Text style={styles.error}>{micError}</Text>}
+
+			{!finalized ? (
+				// Mic is the one fixed anchor on this screen - it must never move,
+				// so it's centered independently of everything else, not sharing a
+				// flex row with Done (which would re-center the whole row and make
+				// mic visibly jump sideways the moment Done appears). Done is a
+				// separate, absolutely-positioned, secondary-weight control that
+				// slots in beside it without ever touching mic's position.
+				<View style={styles.controlsArea}>
+					<MicButton recording={listening} onPress={toggleListening} size={72} />
+					{segments.length > 0 && (
+						<PopIn style={styles.doneSlot}>
+							<PressableScale style={styles.doneButton} onPress={handleDone}>
+								<SealCheckIcon weight="fill" size={22} color={colors.accent} />
+							</PressableScale>
+						</PopIn>
+					)}
+				</View>
+			) : (
 				<View style={styles.shareActionsRow}>
 					<ConfettiBurst />
 					{SHARE_ACTIONS.map((action, i) => (
@@ -441,83 +534,7 @@ export function RecordingScreen() {
 						</PopIn>
 					))}
 				</View>
-			</View>
-		);
-	}
-
-	return (
-		<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
-			<StatusBar barStyle="dark-content" />
-			<View style={styles.header}>
-				<View style={styles.headerLeft}>
-					<ShoppingBagIcon weight="duotone" size={18} color={colors.accent} />
-					<Text style={styles.title}>மளிகை பட்டியல்</Text>
-				</View>
-				<View style={styles.headerRight}>
-					{hasContent && (
-						<PressableScale style={styles.newListButton} onPress={startNewList}>
-							<FilePlusIcon weight="regular" size={14} color={colors.text} />
-							<Text style={styles.newListButtonText}>புதியது</Text>
-						</PressableScale>
-					)}
-					<PressableScale
-						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
-						onPress={() => setSettingsVisible(true)}
-					>
-						<GearIcon weight="regular" size={16} color={connected ? colors.textMuted : colors.accent} />
-					</PressableScale>
-				</View>
-			</View>
-
-			{segments.length === 0 ? (
-				<View style={styles.emptyState}>
-					<BasketIcon weight="regular" size={44} color={colors.accent} />
-					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
-					{frequentItems.length > 0 && (
-						<View style={styles.chipsRow}>
-							{frequentItems.map((item) => (
-								<PressableScale key={item.name} style={styles.chip} onPress={() => addSegment(`${item.name} ${item.quantity} வேணும்.`)}>
-									<Text style={styles.chipText}>{item.name}</Text>
-								</PressableScale>
-							))}
-						</View>
-					)}
-					{lastList && lastList.length > 0 && (
-						<PressableScale
-							style={styles.lastListLink}
-							onPress={() => {
-								setFinalizedItems(lastList);
-								setOrganizedItems(null);
-								setFinalized(true);
-							}}
-						>
-							<ClockIcon weight="regular" size={13} color={colors.textMuted} />
-							<Text style={styles.lastListLinkText}>கடைசி பட்டியலைப் பார்</Text>
-						</PressableScale>
-					)}
-				</View>
-			) : (
-				<LiveLedger items={liveItems} pendingSegments={pendingSegments} />
 			)}
-
-			{micError && <Text style={styles.error}>{micError}</Text>}
-
-			{/* Mic is the one fixed anchor on this screen - it must never move,
-			    so it's centered independently of everything else, not sharing a
-			    flex row with Done (which would re-center the whole row and make
-			    mic visibly jump sideways the moment Done appears). Done is a
-			    separate, absolutely-positioned, secondary-weight control that
-			    slots in beside it without ever touching mic's position. */}
-			<View style={styles.controlsArea}>
-				<MicButton recording={listening} onPress={toggleListening} size={72} />
-				{segments.length > 0 && (
-					<PopIn style={styles.doneSlot}>
-						<PressableScale style={styles.doneButton} onPress={handleDone}>
-							<SealCheckIcon weight="fill" size={22} color={colors.accent} />
-						</PressableScale>
-					</PopIn>
-				)}
-			</View>
 		</View>
 	);
 }
@@ -525,7 +542,21 @@ export function RecordingScreen() {
 // A flagged item shows why (note and/or the reason it was guessed) as a
 // muted subtitle line under the name - the badge alone told the user
 // *something* needed a look, this tells them what.
-function ItemRow({ item, divider, onDelete }: { item: DraftItem | ListItem; divider: boolean; onDelete: (id: string) => void }) {
+// onDelete is optional so the same row can render read-only while the mic
+// is actively listening (hands are busy - see the recording-view usage
+// above) without needing a second component. highlighted briefly marks a
+// row silent reconciliation changed after "Done" (see handleDone).
+function ItemRow({
+	item,
+	divider,
+	onDelete,
+	highlighted,
+}: {
+	item: DraftItem | ListItem;
+	divider: boolean;
+	onDelete?: (id: string) => void;
+	highlighted?: boolean;
+}) {
 	const price = "estimatedPrice" in item && item.estimatedPrice != null ? item.estimatedPrice : null;
 	const subtextParts = [item.note, item.needsConfirmation && item.confirmationReason ? REASON_LABELS[item.confirmationReason] : null].filter(
 		(part): part is string => !!part,
@@ -534,12 +565,12 @@ function ItemRow({ item, divider, onDelete }: { item: DraftItem | ListItem; divi
 	function confirmDelete() {
 		Alert.alert("பொருளை நீக்கவா?", item.name, [
 			{ text: "ரத்து செய்", style: "cancel" },
-			{ text: "நீக்கு", style: "destructive", onPress: () => onDelete(item.id) },
+			{ text: "நீக்கு", style: "destructive", onPress: () => onDelete?.(item.id) },
 		]);
 	}
 
 	return (
-		<View style={[styles.itemRow, divider && styles.itemRowDivider]}>
+		<View style={[styles.itemRow, divider && styles.itemRowDivider, highlighted && styles.itemRowHighlighted]}>
 			<View style={styles.itemMain}>
 				<View style={styles.itemNameRow}>
 					{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
@@ -551,9 +582,11 @@ function ItemRow({ item, divider, onDelete }: { item: DraftItem | ListItem; divi
 				{item.quantity}
 				{price != null && ` · ₹${Math.round(price)}`}
 			</Text>
-			<PressableScale onPress={confirmDelete} accessibilityLabel="நீக்கு" style={styles.deleteButton}>
-				<TrashSimpleIcon weight="regular" size={15} color={colors.textMuted} />
-			</PressableScale>
+			{onDelete && (
+				<PressableScale onPress={confirmDelete} accessibilityLabel="நீக்கு" style={styles.deleteButton}>
+					<TrashSimpleIcon weight="regular" size={15} color={colors.textMuted} />
+				</PressableScale>
+			)}
 		</View>
 	);
 }
@@ -585,9 +618,6 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 18,
 		alignItems: "center",
 	},
-	centered: {
-		justifyContent: "center",
-	},
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -604,6 +634,9 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 8,
+	},
+	reconcilingDots: {
+		transform: [{ scale: 0.5 }],
 	},
 	settingsButton: {
 		width: 28,
@@ -718,15 +751,6 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		backgroundColor: colors.accentSoft,
 	},
-	finalizingDots: {
-		transform: [{ scale: 2.2 }],
-		marginBottom: 28,
-	},
-	finalizingText: {
-		fontSize: 15,
-		fontFamily: fontFamily.bold,
-		color: colors.textMuted,
-	},
 	itemScroll: {
 		flex: 1,
 		width: "100%",
@@ -789,6 +813,12 @@ const styles = StyleSheet.create({
 		borderStyle: "dashed",
 		borderBottomColor: colors.borderStrong,
 	},
+	// Brief flag on a row silent reconciliation changed after "Done" (see
+	// handleDone) - cleared a couple seconds later, no animation needed for
+	// this pass.
+	itemRowHighlighted: {
+		backgroundColor: colors.accentSoft,
+	},
 	itemMain: {
 		flex: 1,
 		gap: 2,
@@ -820,6 +850,13 @@ const styles = StyleSheet.create({
 		height: 26,
 		alignItems: "center",
 		justifyContent: "center",
+	},
+	ghost: {
+		flex: 1,
+		fontSize: 13,
+		fontFamily: fontFamily.medium,
+		color: colors.textMuted,
+		fontStyle: "italic",
 	},
 	shareActionsRow: {
 		flexDirection: "row",
