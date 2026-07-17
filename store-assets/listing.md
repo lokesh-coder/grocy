@@ -114,6 +114,42 @@ of it.
   retained by the developer to delete
 - "Committed to Play Families Policy" → No (not directed at children)
 
+## App access (sign-in details)
+
+**"Is any part of your app restricted?"** → **Yes.** The app opens and
+records fine without signing in, but generating an actual list (tapping
+the checkmark) requires connecting an OpenRouter account first, so a
+reviewer without that would hit a wall.
+
+Provide reviewer credentials for a **dedicated OpenRouter account made just
+for this** (not your real one) - see the security discussion earlier in
+this conversation for why. Small amount of credit loaded, no
+auto-recharge. Instructions to give Google:
+
+```
+No login is required to open the app. To test voice-to-list generation:
+tap the gear icon (top right) → "OpenRouter கணக்கை இணை" (Connect
+OpenRouter account) → sign in with the credentials above → grant access.
+You can then record a grocery list in Tamil and tap the checkmark to
+generate the list.
+```
+
+## Other declarations
+
+Straightforward "No" answers for a grocery-list app with no backend:
+
+- **Ads**: No (app contains no ads)
+- **In-app purchases**: No
+- **Target audience / designed for children**: No - select an adult age
+  range (e.g. 18+), not a children's category. Nothing in the app is
+  child-directed.
+- **News app**: No
+- **COVID-19 contact tracing / status app**: No
+- **Government app**: No
+- **Financial features** (lending, crypto exchange, payment processing,
+  etc.): No - the estimated prices shown are informational only, Grocy
+  never handles a real transaction or payment.
+
 ## Screenshots & graphics
 
 All prepared and ready to upload:
