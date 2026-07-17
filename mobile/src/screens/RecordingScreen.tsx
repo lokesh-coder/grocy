@@ -39,7 +39,16 @@ import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
 import { categoryIcon } from "../lib/categoryIcons";
 import { colors, fontFamily, radius } from "../theme/tokens";
-import type { DraftItem, ListItem } from "../shared/types";
+import type { ConfirmationReason, DraftItem, ListItem } from "../shared/types";
+
+const REASON_LABELS: Record<ConfirmationReason, string> = {
+	vague_quantity: "தெளிவற்ற அளவு",
+	inferred_unit: "யூகிக்கப்பட்ட அலகு",
+	default_quantity: "இயல்பு அளவு",
+	uncertain_item_name: "உறுதியில்லாத பெயர்",
+	uncertain_brand: "உறுதியில்லாத பிராண்ட்",
+	ambiguous_merge: "தெளிவற்ற இணைப்பு",
+};
 
 type FrequentItem = { name: string; quantity: string };
 
@@ -60,9 +69,9 @@ const SHARE_ACTIONS: Array<{ action: ShareAction; Icon: Icon; label: string; col
 // finished list is shared as plain formatted text over the OS share sheet,
 // not a link. Includes prices/total only once "Organize" has actually run.
 function buildShareText(items: DraftItem[], organizedItems: ListItem[] | null): string {
-	const lines = organizedItems
-		? organizedItems.map((item) => `• ${item.name} — ${item.quantity}${item.estimatedPrice != null ? ` · ₹${Math.round(item.estimatedPrice)}` : ""}`)
-		: items.map((item) => `• ${item.name} — ${item.quantity}`);
+	const lineFor = (item: DraftItem | ListItem, price?: number | null) =>
+		`• ${item.name} — ${item.quantity}${price != null ? ` · ₹${Math.round(price)}` : ""}${item.note ? ` (${item.note})` : ""}`;
+	const lines = organizedItems ? organizedItems.map((item) => lineFor(item, item.estimatedPrice)) : items.map((item) => lineFor(item));
 	let text = `மளிகை பட்டியல்:\n${lines.join("\n")}`;
 
 	if (organizedItems) {
@@ -334,13 +343,7 @@ export function RecordingScreen() {
 						<View style={styles.itemListCard}>
 							{finalizedItems.map((item, i) => (
 								<PopIn key={item.id} delay={i * 40}>
-									<View style={[styles.itemRow, i < finalizedItems.length - 1 && styles.itemRowDivider]}>
-										<View style={styles.itemNameRow}>
-											{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
-											<Text style={styles.itemName}>{item.name}</Text>
-										</View>
-										<Text style={styles.itemQty}>{item.quantity}</Text>
-									</View>
+									<ItemRow item={item} divider={i < finalizedItems.length - 1} />
 								</PopIn>
 							))}
 						</View>
@@ -357,16 +360,7 @@ export function RecordingScreen() {
 										<View style={styles.itemListCard}>
 											{group.items.map((item, i) => (
 												<PopIn key={item.id} delay={i * 30}>
-													<View style={[styles.itemRow, i < group.items.length - 1 && styles.itemRowDivider]}>
-														<View style={styles.itemNameRow}>
-															{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
-															<Text style={styles.itemName}>{item.name}</Text>
-														</View>
-														<Text style={styles.itemQty}>
-															{item.quantity}
-															{item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
-														</Text>
-													</View>
+													<ItemRow item={item} divider={i < group.items.length - 1} />
 												</PopIn>
 											))}
 										</View>
@@ -462,6 +456,32 @@ export function RecordingScreen() {
 					</PopIn>
 				)}
 			</View>
+		</View>
+	);
+}
+
+// A flagged item shows why (note and/or the reason it was guessed) as a
+// muted subtitle line under the name - the badge alone told the user
+// *something* needed a look, this tells them what.
+function ItemRow({ item, divider }: { item: DraftItem | ListItem; divider: boolean }) {
+	const price = "estimatedPrice" in item && item.estimatedPrice != null ? item.estimatedPrice : null;
+	const subtextParts = [item.note, item.needsConfirmation && item.confirmationReason ? REASON_LABELS[item.confirmationReason] : null].filter(
+		(part): part is string => !!part,
+	);
+
+	return (
+		<View style={[styles.itemRow, divider && styles.itemRowDivider]}>
+			<View style={styles.itemMain}>
+				<View style={styles.itemNameRow}>
+					{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
+					<Text style={styles.itemName}>{item.name}</Text>
+				</View>
+				{subtextParts.length > 0 && <Text style={styles.itemSubtext}>{subtextParts.join(" · ")}</Text>}
+			</View>
+			<Text style={styles.itemQty}>
+				{item.quantity}
+				{price != null && ` · ₹${Math.round(price)}`}
+			</Text>
 		</View>
 	);
 }
@@ -687,26 +707,36 @@ const styles = StyleSheet.create({
 	itemRow: {
 		flexDirection: "row",
 		justifyContent: "space-between",
-		alignItems: "center",
+		alignItems: "flex-start",
 		paddingHorizontal: 12,
 		paddingVertical: 10,
+		gap: 8,
 	},
 	itemRowDivider: {
 		borderBottomWidth: 1,
 		borderStyle: "dashed",
 		borderBottomColor: colors.borderStrong,
 	},
+	itemMain: {
+		flex: 1,
+		gap: 2,
+	},
 	itemNameRow: {
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 5,
-		flexShrink: 1,
 	},
 	itemName: {
 		fontSize: 14,
 		fontFamily: fontFamily.medium,
 		color: colors.text,
 		flexShrink: 1,
+	},
+	itemSubtext: {
+		fontSize: 11,
+		fontFamily: fontFamily.medium,
+		color: colors.textMuted,
+		fontStyle: "italic",
 	},
 	itemQty: {
 		fontSize: 12,
