@@ -49,7 +49,12 @@ Rules:
 - Ignore filler words, hesitations, and false starts ("ம்ம்", "பாரு", "இல்ல... இல்ல") - they're not items.
 - Keep item names in Tamil exactly as spoken - except when a name is really a Tamil-script phonetic spelling of an English word or brand name (e.g. "எஸ் வி எஸ்" = "SVS", "ஹார்லிக்ஸ்" = "Horlicks", "டைப்பர்" = "Diaper"). Speech recognition transliterates English words into Tamil script since it's listening in Tamil, but these are conventionally written in English - write them that way instead of the Tamil transliteration.
 - If no quantity was mentioned at all for an item, use exactly "1" as its quantity - never leave it blank or write "not specified".
-- Only include items the person currently wants - never something explicitly replaced or cancelled. If nothing has been said yet, return an empty list.`;
+- Only include items the person currently wants - never something explicitly replaced or cancelled. If nothing has been said yet, return an empty list.
+- Set needsConfirmation to true whenever you had to guess rather than parse something the person actually said clearly: a vague quantity ("கொஞ்சம்"), an item name you're not confident you heard correctly, or a bare number where you inferred the unit from real-world knowledge rather than it being spoken. Set it to false when the item and quantity were stated plainly. Never silently guess without flagging it - a wrong flagged guess is fine, a wrong silent one isn't.
+
+Common Tamil Nadu grocery brand names, in case speech recognition garbles them - use these spellings whenever the transcript is a plausible phonetic match, even if the letters look quite different:
+Dairy: Aavin, Arokya, Hatsun, Milky Mist. Oils: Gold Winner, Idhayam, Fortune, Sunpure, VVD. Ghee: RKG, GRB, Aavin. Masala: Sakthi, Aachi, MTR, Everest. Tea/Coffee: 3 Roses, AVT, Chakra Gold, Bru, Nescafe, Narasus. Rice/Atta: India Gate, Aashirvaad. Dal: Udhaiyam. Semiya/Rava: Anil, Bambino. Biscuits/Snacks: Parle-G, Milk Bikis, Marie Gold, Hide & Seek. Cleaning: Surf Excel, Rin, Ponvandu, Vim, Harpic, Lizol. Personal care: Hamam, Mysore Sandal, Ponds, Cinthol, Meera, Chik.
+Note: "Ponni", "பச்சரிசி", "புழுங்கல் அரிசி", "இட்லி அரிசி" are rice varieties, not brands - keep them as said, don't replace with a brand from the list above.`;
 
 const ITEMS_SCHEMA = {
 	name: "grocery_items",
@@ -64,8 +69,9 @@ const ITEMS_SCHEMA = {
 					properties: {
 						name: { type: "string" },
 						quantity: { type: "string" },
+						needsConfirmation: { type: "boolean" },
 					},
-					required: ["name", "quantity"],
+					required: ["name", "quantity", "needsConfirmation"],
 					additionalProperties: false,
 				},
 			},
@@ -174,6 +180,7 @@ export async function extractItems(transcript: string, model: string): Promise<D
 		id: `item-${index}`,
 		name: String(item.name ?? "").trim(),
 		quantity: String(item.quantity ?? "1").trim() || "1",
+		needsConfirmation: Boolean(item.needsConfirmation),
 	}));
 }
 
@@ -214,7 +221,7 @@ export async function estimatePrices(items: ListItem[], model: string): Promise<
 	}));
 }
 
-function parseItemsResponse(result: unknown): Array<{ name?: unknown; quantity?: unknown }> {
+function parseItemsResponse(result: unknown): Array<{ name?: unknown; quantity?: unknown; needsConfirmation?: unknown }> {
 	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
 	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
 	const items = (parsed as { items?: unknown })?.items;

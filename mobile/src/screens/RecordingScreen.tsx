@@ -11,6 +11,7 @@ import {
 	SealCheckIcon,
 	ShareNetworkIcon,
 	ShoppingBagIcon,
+	WarningCircleIcon,
 	WhatsappLogoIcon,
 	type Icon,
 } from "phosphor-react-native";
@@ -334,7 +335,10 @@ export function RecordingScreen() {
 							{finalizedItems.map((item, i) => (
 								<PopIn key={item.id} delay={i * 40}>
 									<View style={[styles.itemRow, i < finalizedItems.length - 1 && styles.itemRowDivider]}>
-										<Text style={styles.itemName}>{item.name}</Text>
+										<View style={styles.itemNameRow}>
+											{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
+											<Text style={styles.itemName}>{item.name}</Text>
+										</View>
 										<Text style={styles.itemQty}>{item.quantity}</Text>
 									</View>
 								</PopIn>
@@ -354,7 +358,10 @@ export function RecordingScreen() {
 											{group.items.map((item, i) => (
 												<PopIn key={item.id} delay={i * 30}>
 													<View style={[styles.itemRow, i < group.items.length - 1 && styles.itemRowDivider]}>
-														<Text style={styles.itemName}>{item.name}</Text>
+														<View style={styles.itemNameRow}>
+															{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
+															<Text style={styles.itemName}>{item.name}</Text>
+														</View>
 														<Text style={styles.itemQty}>
 															{item.quantity}
 															{item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
@@ -689,10 +696,17 @@ const styles = StyleSheet.create({
 		borderStyle: "dashed",
 		borderBottomColor: colors.borderStrong,
 	},
+	itemNameRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 5,
+		flexShrink: 1,
+	},
 	itemName: {
 		fontSize: 14,
 		fontFamily: fontFamily.medium,
 		color: colors.text,
+		flexShrink: 1,
 	},
 	itemQty: {
 		fontSize: 12,
