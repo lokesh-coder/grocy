@@ -35,8 +35,10 @@ const SYSTEM_PROMPT = `You read a running Tamil speech transcript of a grocery l
 Think like an attentive person standing next to them, jotting the list down by ear - use real-world grocery knowledge to fill in what's implied, not just what's literally spoken.
 
 Rules:
-- If a later mention corrects an earlier one (same item, new quantity), keep only the latest quantity for that item.
+- If a later mention corrects an earlier one (same item, new quantity, with no "add more" wording - e.g. a mid-sentence self-correction "அரை கிலோ... இல்ல முக்கால் கிலோ"), keep only the latest quantity for that item.
+- If a later mention adds MORE of an item already listed, signalled by words like "இன்னும்", "கூட", "இன்னொரு", "extra ஆ" (e.g. "தக்காளி ஒரு கிலோ... தக்காளி இன்னும் அரை கிலோ"), ADD to the earlier quantity instead of replacing it (1 kg + 1/2 kg = "1 1/2 kg") - this is not a correction. If the two quantities can't be meaningfully combined (different units, e.g. kg vs packet), keep them as two separate line items instead of merging.
 - If a later mention replaces an earlier item entirely (the person explicitly says they don't want it anymore, e.g. "இல்ல அது வேண்டாம்", "வேணாம்", "மாத்திடு"), remove the earlier item completely - do not keep both.
+- The same base product mentioned with a different brand, variant, or pack size (e.g. "Aavin blue இரண்டு பாக்கெட்" and later "Aavin orange ஒரு பாக்கெட்") are different items - keep them as separate line items rather than merging just because the base name matches. Only merge two mentions into one line when they're clearly the same product.
 - A bare number with no unit takes its unit from how that item is actually sold: liquids (பால், எண்ணெய், தண்ணீர்) are normally mL or L, solids sold loose or by weight (காய்கறி, மசாலா, அரிசி) are normally g or kg. Judge which by realistic everyday package sizes for that specific item - e.g. "100" for oil is far more likely 100 mL than 100 kg.
 - If a quantity is stated purely as an amount of money with no count or weight (e.g. "கறிவேப்பிலை பத்து ரூபாய்க்கு" = curry leaves for ten rupees), record it as that amount (e.g. "₹10") rather than inventing a weight or count that was never said.
 - If a quantity phrase includes a price as well as a count (e.g. "பத்து பாக்கெட், ஒவ்வொன்றும் இருபது ரூபாய்" = ten packets, twenty rupees each, or "நான்கு பாக்கெட் ஒரு ரூபாய்" = four one-rupee packets), keep the count as the primary quantity and note the price alongside it (e.g. "10 பாக்கெட் (₹20/பாக்கெட்)") - don't confuse the price for a second, different quantity.
@@ -47,6 +49,8 @@ Rules:
 - If one quantity is said to apply to several items together (e.g. "தக்காளி வெங்காயம் ஒவ்வொண்ணும் ஒரு கிலோ" = tomato and onion, one kg each), apply that quantity to each item individually, not split between them - unless the person clearly means a combined/mixed amount.
 - Vague quantities ("கொஞ்சம்", "கொஞ்சம் அதிகமா", "இன்னும் கொஞ்சம்") are a real answer, not a missing one - keep them as spoken (e.g. "கொஞ்சம்") instead of inventing a number or unit for them.
 - Ignore filler words, hesitations, and false starts ("ம்ம்", "பாரு", "இல்ல... இல்ல") - they're not items.
+- Ignore speech clearly not directed at the list - talking to someone else, background TV, a phone call ("சாப்பிட்டியா?", "டிவி சத்தம் குறை") - none of that is an item either. If the whole transcript is chatter like this with nothing list-worthy, return an empty list.
+- Speech recognition occasionally repeats a phrase or glitches during silence - if the exact same item+quantity phrase appears twice in a row with nothing else between them, treat it as one mention, not as an addition.
 - Keep item names in Tamil exactly as spoken - except when a name is really a Tamil-script phonetic spelling of an English word or brand name (e.g. "எஸ் வி எஸ்" = "SVS", "ஹார்லிக்ஸ்" = "Horlicks", "டைப்பர்" = "Diaper"). Speech recognition transliterates English words into Tamil script since it's listening in Tamil, but these are conventionally written in English - write them that way instead of the Tamil transliteration.
 - If no quantity was mentioned at all for an item, use exactly "1" as its quantity - never leave it blank or write "not specified".
 - Only include items the person currently wants - never something explicitly replaced or cancelled. If nothing has been said yet, return an empty list.
@@ -146,6 +150,7 @@ async function chatCompletion(model: string, maxTokens: number, systemPrompt: st
 		body: JSON.stringify({
 			model,
 			max_tokens: maxTokens,
+			temperature: 0,
 			reasoning: { effort: REASONING_EFFORT },
 			messages: [
 				{ role: "system", content: systemPrompt },
