@@ -5,7 +5,9 @@ your mind about an item, mixed-in English words) and watch it turn into a
 clean, optionally categorized-and-priced list. Share the finished list as
 text to WhatsApp or anywhere else.
 
-Personal/family-use Android app. No backend at all — just the app.
+Personal/family-use Android app, now also on the Play Store. Almost no
+backend — one tiny endpoint, everything else happens on-device or directly
+against OpenRouter.
 
 ## Architecture
 
@@ -14,6 +16,11 @@ mobile/                     Android app (Expo / React Native)
   ├─ Recording screen          - mic button, live transcript, Done, Organize, share
   └─ Settings                  - connect an OpenRouter account, pick a model
 
+provision/                  Cloudflare Worker (grocy-provision) - the one
+                             backend endpoint Grocy has: mints a free,
+                             capped OpenRouter key on first use, sees no
+                             user data (see provision/src/index.ts)
+
 site/                       Static site (grocy.store) - landing page, privacy
                              policy, and the OAuth callback page the app's
                              connect flow redirects through (see site/README.md)
@@ -21,22 +28,31 @@ site/                       Static site (grocy.store) - landing page, privacy
 OpenRouter (Gemini)         Extraction, categorization, price estimation
 ```
 
-There's no app server. The app connects directly to OpenRouter using a
-[PKCE OAuth flow](https://openrouter.ai/docs/use-cases/oauth-pkce)
-(`mobile/src/lib/openrouterAuth.ts`) — the user authorizes once from
-Settings, the resulting API key is theirs, stored on-device (`expo-secure-
-store`), and every extraction/categorization/pricing call goes straight from
-the phone to OpenRouter with that key. Usage draws from whatever OpenRouter
-account authorized it, so there's nothing to host, meter, or pay for
-centrally — one person can authorize once and share that same connected
-device setup with family, or each person can connect their own account.
+The app talks directly to OpenRouter for everything - extraction,
+categorization, pricing - using an API key stored on-device
+(`expo-secure-store`). Where that key comes from is layered:
 
-This used to run through a Cloudflare Worker whose only job was keeping a
-shared API key off the device. Once PKCE removed the need for a shared key
-at all (no client secret required for the exchange), the Worker had nothing
-left to do. Before that, it also briefly held a Durable Object and D1 for a
-shared/live tick-off-while-shopping feature that turned out not to be
-needed either — see git history if any of that is useful as reference.
+1. **First use, automatically**: the app calls `provision/`'s one endpoint,
+   which mints a small, spending-capped OpenRouter key (auto-renews
+   monthly) and hands it back. No signup, no connecting anything - this is
+   what makes the app usable immediately for someone who's never heard of
+   OpenRouter.
+2. **Optional upgrade, from Settings**: connecting a real OpenRouter account
+   via [PKCE OAuth](https://openrouter.ai/docs/use-cases/oauth-pkce)
+   (`mobile/src/lib/openrouterAuth.ts`) replaces the auto-provisioned key
+   with an unlimited one the user controls and pays for themselves - no
+   client secret needed for this exchange, so it's still not something
+   `provision/` is involved in.
+
+`provision/` never sees grocery list content, voice data, or anything
+personal - its only job is "mint a key," gated by one secret (an OpenRouter
+Management/Provisioning key) it holds server-side. This is a deliberately
+tiny reintroduction of backend after an earlier fully-backend-less version
+of this app turned out to be too much friction for a normal user (no
+account, no OpenRouter knowledge, should just work) - see git history for
+that fully backend-less iteration if useful as reference, along with the
+earlier Cloudflare Worker + Durable Object + D1 version before that (also
+removed, for being more than the app actually needed).
 
 Everything the app needs across sessions (last list, frequent-item quick-add
 suggestions) lives on-device (`mobile/src/lib/listHistory.ts`, AsyncStorage).
@@ -44,6 +60,20 @@ There's no shared/live list between two phones and no web client (there used
 to be a PWA; retired in favor of the native app, which does everything
 better on Android: real voice recognition quality, no browser chrome, home
 screen widgets/shortcuts potential, etc.)
+
+## Deploying provision/
+
+```bash
+cd provision
+npm install
+npx wrangler secret put OPENROUTER_PROVISIONING_KEY   # an OpenRouter Management/Provisioning key, from your OpenRouter account settings - not a regular API key
+npm run deploy
+```
+
+`FREE_LIMIT_USD` in `provision/src/index.ts` controls how much credit each
+auto-provisioned key gets (currently a small amount, auto-renewing
+monthly) - tune it there if usage patterns after launch suggest it should
+be higher or lower.
 
 ## Setup
 
@@ -53,8 +83,11 @@ screen widgets/shortcuts potential, etc.)
   minimum the command-line tools + platform-tools + a build-tools version +
   an NDK
 - A physical Android device (or emulator) for testing
-- An [OpenRouter](https://openrouter.ai) account (created during the in-app
-  connect flow if you don't have one yet — no separate setup needed)
+- Nothing OpenRouter-related to set up yourself - a fresh install
+  auto-provisions a free key against the deployed `provision/` Worker on
+  first use (see the Architecture section above). An
+  [OpenRouter](https://openrouter.ai) account is only needed if you want to
+  connect your own from Settings instead.
 
 ### Development build
 
@@ -65,11 +98,9 @@ npx expo run:android   # builds + installs to a connected device via USB
 ```
 
 This is a debug build wired to the Metro bundler (needs the dev server
-running) — for day-to-day testing, not for sharing to another phone.
-
-On first launch, open the gear icon → **OpenRouter கணக்கை இணை** (Connect
-OpenRouter account) to complete the OAuth flow before recording a list —
-extraction/organize calls fail with a clear error until this is done.
+running) — for day-to-day testing, not for sharing to another phone. Record
+a list and tap "Done" - a free key provisions itself automatically the
+first time it's needed, no setup required.
 
 ## Building a release APK (for real use, not dev)
 

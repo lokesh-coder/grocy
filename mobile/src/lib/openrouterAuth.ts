@@ -2,11 +2,10 @@ import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 
-// No backend at all anymore - PKCE needs no client secret, so the
-// authorize -> code -> key exchange happens entirely on-device. The
-// resulting key draws from whichever OpenRouter account authorizes it (see
-// the settings screen), so this is a one-time setup per device, not per
-// list.
+// PKCE needs no client secret, so the authorize -> code -> key exchange
+// happens entirely on-device. The resulting key draws from whichever
+// OpenRouter account authorizes it (see the settings screen), so this is a
+// one-time setup per device, not per list.
 const APP_REDIRECT_URL = "grocy://auth-callback";
 
 // OpenRouter's callback_url only accepts https:// (or localhost) - it
@@ -19,7 +18,15 @@ const APP_REDIRECT_URL = "grocy://auth-callback";
 // finishes loading, with a client-side redirect as a fallback.
 const OAUTH_CALLBACK_URL = "https://grocy.store/auth-callback";
 
+// The one backend Grocy has (see provision/src/index.ts) - mints a small,
+// free, auto-renewing OpenRouter key so a fresh install works immediately
+// without requiring an OpenRouter account first. Only ever called once per
+// install, when no key exists yet - after that the app talks to OpenRouter
+// directly with whatever key it has stored.
+const PROVISION_URL = "https://grocy-provision.notesane.workers.dev/provision-key";
+
 const KEY_STORE_KEY = "grocy-openrouter-key";
+const IS_AUTO_KEY_STORE_KEY = "grocy-openrouter-key-is-auto";
 
 function base64UrlEncode(bytes: Uint8Array): string {
 	let binary = "";
@@ -34,6 +41,9 @@ async function createCodeChallenge(verifier: string): Promise<string> {
 	return digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// Explicit user action from Settings - connecting a real OpenRouter account
+// replaces whatever auto-provisioned key was there (if any) with an
+// unlimited one the user controls and pays for themselves.
 export async function connectOpenRouter(): Promise<void> {
 	const verifierBytes = await Crypto.getRandomBytesAsync(32);
 	const codeVerifier = base64UrlEncode(verifierBytes);
@@ -61,12 +71,42 @@ export async function connectOpenRouter(): Promise<void> {
 
 	const { key } = (await response.json()) as { key: string };
 	await SecureStore.setItemAsync(KEY_STORE_KEY, key);
+	await SecureStore.setItemAsync(IS_AUTO_KEY_STORE_KEY, "false");
 }
 
 export async function getOpenRouterKey(): Promise<string | null> {
 	return SecureStore.getItemAsync(KEY_STORE_KEY);
 }
 
+export async function isAutoProvisionedKey(): Promise<boolean> {
+	return (await SecureStore.getItemAsync(IS_AUTO_KEY_STORE_KEY)) === "true";
+}
+
+// Called from extract.ts before every extraction/organize call, not just
+// once at connect time - so the very first "Done" tap on a fresh install
+// works with no setup at all. Only actually hits the network the first
+// time (or after a disconnect); every call after that just returns the
+// already-stored key.
+export async function ensureOpenRouterKey(): Promise<string | null> {
+	const existing = await getOpenRouterKey();
+	if (existing) return existing;
+
+	try {
+		const response = await fetch(PROVISION_URL, { method: "POST" });
+		if (!response.ok) return null;
+		const { key } = (await response.json()) as { key: string };
+		if (!key) return null;
+		await SecureStore.setItemAsync(KEY_STORE_KEY, key);
+		await SecureStore.setItemAsync(IS_AUTO_KEY_STORE_KEY, "true");
+		return key;
+	} catch {
+		// No network, provisioning endpoint down, etc. - extract.ts surfaces
+		// this as "connect your own account" rather than a silent failure.
+		return null;
+	}
+}
+
 export async function disconnectOpenRouter(): Promise<void> {
 	await SecureStore.deleteItemAsync(KEY_STORE_KEY);
+	await SecureStore.deleteItemAsync(IS_AUTO_KEY_STORE_KEY);
 }

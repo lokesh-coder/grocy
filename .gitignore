@@ -1,4 +1,7 @@
-# mobile/ has its own .gitignore for its Expo/RN project - this one just
-# covers root-level OS/editor cruft, since there's no backend project here
-# anymore (see README for why).
+# mobile/ has its own .gitignore for its Expo/RN project - this one covers
+# root-level OS/editor cruft plus provision/'s Cloudflare Worker (the one
+# small backend Grocy has - see provision/src/index.ts).
 .DS_Store
+node_modules/
+provision/.dev.vars
+provision/.wrangler/

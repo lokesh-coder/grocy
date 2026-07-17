@@ -6,9 +6,28 @@
 // been removed.
 import { CATEGORY_IDS, type CategoryId } from "../shared/categories";
 import type { DraftItem, ListItem } from "../shared/types";
-import { getOpenRouterKey } from "./openrouterAuth";
+import { ensureOpenRouterKey } from "./openrouterAuth";
 
 const REASONING_EFFORT = "low";
+
+// Thrown when there's no key at all and auto-provisioning also failed (no
+// network, provisioning endpoint down) - distinct from the limit-exceeded
+// case below so the UI can word the prompt correctly either way.
+export class OpenRouterNotConnectedError extends Error {
+	constructor() {
+		super("Not connected to OpenRouter, and a free key couldn't be provisioned automatically.");
+		this.name = "OpenRouterNotConnectedError";
+	}
+}
+
+// Thrown when the stored key (usually an auto-provisioned free one) has hit
+// its spending limit - OpenRouter returns 402 for this.
+export class OpenRouterLimitExceededError extends Error {
+	constructor() {
+		super("This OpenRouter key has reached its usage limit.");
+		this.name = "OpenRouterLimitExceededError";
+	}
+}
 
 const SYSTEM_PROMPT = `You read a running Tamil speech transcript of a grocery list someone is dictating out loud, sometimes mixed with English words (brand names, loanwords). People think out loud while doing this: they pause, restart, correct themselves, change their mind about an item entirely, or fix a quantity. Extract the current, de-duplicated set of grocery items the person currently wants - not just what they said, but what they mean after accounting for every correction and replacement.
 
@@ -108,8 +127,8 @@ const PRICE_SCHEMA = {
 };
 
 async function chatCompletion(model: string, maxTokens: number, systemPrompt: string, userContent: string, schema: unknown) {
-	const key = await getOpenRouterKey();
-	if (!key) throw new Error("Not connected to OpenRouter - open Settings and connect an account first.");
+	const key = await ensureOpenRouterKey();
+	if (!key) throw new OpenRouterNotConnectedError();
 
 	const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 		method: "POST",
@@ -129,6 +148,9 @@ async function chatCompletion(model: string, maxTokens: number, systemPrompt: st
 		}),
 	});
 
+	if (response.status === 402) {
+		throw new OpenRouterLimitExceededError();
+	}
 	if (!response.ok) {
 		throw new Error(`OpenRouter request failed: ${response.status} ${await response.text()}`);
 	}

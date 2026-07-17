@@ -25,11 +25,17 @@ import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
 import { SettingsModal } from "../components/SettingsModal";
 import { HelpModal } from "../components/HelpModal";
-import { categorizeItems, estimatePrices, extractItems } from "../lib/extract";
+import {
+	categorizeItems,
+	estimatePrices,
+	extractItems,
+	OpenRouterLimitExceededError,
+	OpenRouterNotConnectedError,
+} from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList } from "../lib/listHistory";
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
 import { DEFAULT_MODEL_ID } from "../lib/models";
-import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey } from "../lib/openrouterAuth";
+import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey, isAutoProvisionedKey } from "../lib/openrouterAuth";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
 import { categoryIcon } from "../lib/categoryIcons";
@@ -88,19 +94,44 @@ export function RecordingScreen() {
 	const [helpVisible, setHelpVisible] = useState(false);
 	const [connected, setConnected] = useState(false);
 	const [connecting, setConnecting] = useState(false);
+	const [isAuto, setIsAuto] = useState(false);
 
 	const hasContent = segments.length > 0 || finalized;
+
+	const refreshConnectionState = useCallback(async () => {
+		const key = await getOpenRouterKey();
+		setConnected(!!key);
+		setIsAuto(key ? await isAutoProvisionedKey() : false);
+	}, []);
 
 	useEffect(() => {
 		getLastList().then(setLastList);
 		getSelectedModel().then(setModel);
-		getOpenRouterKey().then((key) => setConnected(!!key));
+		refreshConnectionState();
 		getFrequentItems()
 			.then(setFrequentItems)
 			.catch(() => {
 				// not critical - the empty state just won't show quick-add chips
 			});
-	}, []);
+	}, [refreshConnectionState]);
+
+	// A free key can be auto-provisioned mid-request (see extract.ts) without
+	// ever going through handleConnect, so this is the one place that needs
+	// to react to OpenRouter-specific failures from any of the three calls -
+	// shared so "Done" and "Organize" both word the prompt the same way.
+	function handleOpenRouterError(error: unknown) {
+		if (error instanceof OpenRouterLimitExceededError) {
+			Alert.alert("இலவச வரம்பு முடிந்தது", "இந்த மாத இலவச பயன்பாடு முடிந்துவிட்டது. தொடர உங்கள் சொந்த OpenRouter கணக்கை இணைக்கவும்.", [
+				{ text: "சரி", onPress: () => setSettingsVisible(true) },
+			]);
+		} else if (error instanceof OpenRouterNotConnectedError) {
+			Alert.alert("இணைப்பு தேவை", "பட்டியலை உருவாக்க இணையம் தேவை - சரிபார்த்து மீண்டும் முயற்சிக்கவும், அல்லது அமைப்புகளில் இருந்து இணைக்கவும்.", [
+				{ text: "சரி", onPress: () => setSettingsVisible(true) },
+			]);
+		} else {
+			Alert.alert("பிழை", error instanceof Error ? error.message : String(error));
+		}
+	}
 
 	async function handleSelectModel(id: string) {
 		setModel(id);
@@ -112,7 +143,7 @@ export function RecordingScreen() {
 		setConnecting(true);
 		try {
 			await connectOpenRouter();
-			setConnected(true);
+			await refreshConnectionState();
 			setSettingsVisible(false);
 		} catch (error) {
 			Alert.alert("இணைக்க முடியவில்லை", error instanceof Error ? error.message : String(error));
@@ -123,7 +154,7 @@ export function RecordingScreen() {
 
 	async function handleDisconnect() {
 		await disconnectOpenRouter();
-		setConnected(false);
+		await refreshConnectionState();
 	}
 
 	const addSegment = useCallback((text: string) => {
@@ -158,10 +189,6 @@ export function RecordingScreen() {
 
 	async function handleDone() {
 		if (listening) ExpoSpeechRecognitionModule.stop();
-		if (!connected) {
-			setSettingsVisible(true);
-			return;
-		}
 		setFinalizing(true);
 		try {
 			const items = await extractItems(segments.join(" "), model);
@@ -170,6 +197,9 @@ export function RecordingScreen() {
 			setFinalizedItems(items);
 			setOrganizedItems(null);
 			setFinalized(true);
+			await refreshConnectionState(); // a key may have just been auto-provisioned
+		} catch (error) {
+			handleOpenRouterError(error);
 		} finally {
 			setFinalizing(false);
 		}
@@ -181,6 +211,8 @@ export function RecordingScreen() {
 			const categorized = await categorizeItems(finalizedItems, model);
 			const priced = await estimatePrices(categorized, model);
 			setOrganizedItems(priced);
+		} catch (error) {
+			handleOpenRouterError(error);
 		} finally {
 			setOrganizing(false);
 		}
@@ -371,6 +403,7 @@ export function RecordingScreen() {
 				onSelect={handleSelectModel}
 				onClose={() => setSettingsVisible(false)}
 				connected={connected}
+				isAuto={isAuto}
 				connecting={connecting}
 				onConnect={handleConnect}
 				onDisconnect={handleDisconnect}

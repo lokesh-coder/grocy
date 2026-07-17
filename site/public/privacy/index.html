@@ -13,15 +13,18 @@
   <p class="updated">Last updated: July 2026</p>
 
   <div class="card">
-    <p>Grocy is a voice-to-grocery-list Android app. This policy explains what data the app touches, where it goes, and — just as important — what the app's developer never sees, because <strong>Grocy has no backend server of its own</strong>. Everything described below happens either entirely on your device, or directly between your device and services you connect yourself.</p>
+    <p>Grocy is a voice-to-grocery-list Android app. This policy explains what data the app touches and where it goes. <strong>Grocy's developer never sees your grocery list, your voice, or your transcript</strong> — the one small piece of backend Grocy operates never receives any of that (see "Free plan setup" below), and everything else happens either entirely on your device or directly between your device and OpenRouter.</p>
   </div>
 
   <h2>Voice input</h2>
   <p>When you speak a list, Grocy uses your Android device's built-in speech recognition (the same system service other apps use) to turn your voice into text, entirely on your phone. Grocy does not record, store, or transmit raw audio anywhere.</p>
 
   <h2>What gets sent to OpenRouter</h2>
-  <p>To turn a spoken transcript into a structured list — and, if you choose to, to categorize items and estimate prices — Grocy sends the transcript text and list items to <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a>, an AI model routing service. This happens using <strong>your own OpenRouter account</strong>, connected once from the app's Settings screen. Grocy's developer has no access to this traffic and operates no server that it passes through — it goes directly from your device to OpenRouter using your credentials.</p>
+  <p>To turn a spoken transcript into a structured list — and, if you choose to, to categorize items and estimate prices — Grocy sends the transcript text and list items to <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a>, an AI model routing service. This goes directly from your device to OpenRouter using an API key stored on your device — Grocy's developer has no access to this traffic. That key is either one you connected yourself (your own OpenRouter account, from the app's Settings screen) or one issued automatically by Grocy's provisioning endpoint, described next.</p>
   <p>OpenRouter's own handling of this data is governed by <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener">OpenRouter's privacy policy</a>, not this one.</p>
+
+  <h2>Free plan setup</h2>
+  <p>So the app works immediately without requiring you to create an OpenRouter account first, the first time it needs a key, your device makes one request to a small Grocy-operated endpoint that issues a free, spending-capped OpenRouter key. <strong>This request contains no grocery list content, no voice data, and no personal information</strong> — it is a single "issue me a key" call. Grocy's developer does not log or retain anything from it beyond standard, aggregate infrastructure metrics (like request counts) that Cloudflare, the hosting provider, provides for any web request. Once issued, the key is stored on your device and used directly with OpenRouter for everything else — this endpoint isn't involved again unless a new key is needed (e.g. after reinstalling).</p>
 
   <h2>What's stored, and where</h2>
   <ul>

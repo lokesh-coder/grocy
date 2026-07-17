@@ -12,6 +12,7 @@ type Props = {
 	onSelect: (id: string) => void;
 	onClose: () => void;
 	connected: boolean;
+	isAuto: boolean;
 	connecting: boolean;
 	onConnect: () => void;
 	onDisconnect: () => void;
@@ -26,6 +27,7 @@ export function SettingsModal({
 	onSelect,
 	onClose,
 	connected,
+	isAuto,
 	connecting,
 	onConnect,
 	onDisconnect,
@@ -42,7 +44,7 @@ export function SettingsModal({
 					</View>
 
 					<Text style={styles.sectionLabel}>OpenRouter கணக்கு</Text>
-					{connected ? (
+					{connected && !isAuto && (
 						<View style={styles.connectedRow}>
 							<View style={styles.connectedBadge}>
 								<CheckCircleIcon weight="fill" size={16} color={colors.fun.sage} />
@@ -53,7 +55,31 @@ export function SettingsModal({
 								<Text style={styles.disconnectText}>துண்டி</Text>
 							</PressableScale>
 						</View>
-					) : (
+					)}
+					{connected && isAuto && (
+						<>
+							<View style={styles.connectedRow}>
+								<View style={styles.connectedBadge}>
+									<CheckCircleIcon weight="fill" size={16} color={colors.accent} />
+									<Text style={styles.connectedText}>இலவச திட்டம் பயன்பாட்டில்</Text>
+								</View>
+							</View>
+							<Text style={styles.autoNote}>
+								மாதம்தோறும் இலவசமாக புதுப்பிக்கப்படும். வரம்பு முடிந்தால், உங்கள் சொந்த கணக்கை இணைத்து வரம்பின்றி தொடரலாம்.
+							</Text>
+							<PressableScale onPress={onConnect} disabled={connecting} style={styles.upgradeButton}>
+								{connecting ? (
+									<LoaderDots variant="fun" />
+								) : (
+									<>
+										<LinkSimpleIcon weight="bold" size={14} color={colors.accent} />
+										<Text style={styles.upgradeButtonText}>சொந்த கணக்கை இணை</Text>
+									</>
+								)}
+							</PressableScale>
+						</>
+					)}
+					{!connected && (
 						<AccentButton onPress={onConnect} disabled={connecting}>
 							{connecting ? (
 								<LoaderDots variant="onAccent" />
@@ -170,6 +196,29 @@ const styles = StyleSheet.create({
 		color: colors.onAccent,
 		fontFamily: fontFamily.bold,
 		fontSize: 14,
+	},
+	autoNote: {
+		fontSize: 11,
+		fontFamily: fontFamily.medium,
+		color: colors.textMuted,
+		lineHeight: 15,
+		marginTop: 2,
+	},
+	upgradeButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 6,
+		paddingVertical: 10,
+		borderRadius: radius.sm,
+		borderWidth: 1.2,
+		borderColor: colors.accent,
+		marginTop: 6,
+	},
+	upgradeButtonText: {
+		fontSize: 13,
+		fontFamily: fontFamily.bold,
+		color: colors.accent,
 	},
 	option: {
 		flexDirection: "row",
