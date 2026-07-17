@@ -8,7 +8,6 @@ import { CATEGORY_IDS, type CategoryId } from "../shared/categories";
 import type { ConfirmationReason, DraftItem, ListItem } from "../shared/types";
 import { ensureOpenRouterKey } from "./openrouterAuth";
 import { getCustomInstructions } from "./customInstructions";
-import { LIVE_MODEL_ID } from "./models";
 
 const REASONING_EFFORT = "low";
 
@@ -251,117 +250,23 @@ function toDraftItemFields(item: RawItem): Omit<DraftItem, "id"> {
 	};
 }
 
-// --- Live, per-segment extraction (see RecordingScreen.tsx) ---
+// --- Reconciliation (see RecordingScreen.tsx) ---
 //
-// While the person is still dictating, each finalized speech segment is
-// parsed individually against the list-so-far and turned into operations
-// (add/update/remove) instead of re-parsing the whole transcript - this is
-// what lets items tick into view as they're spoken instead of only
-// appearing after "Done". Deliberately smaller/cheaper than SYSTEM_PROMPT
-// above (no pricing edge cases, two examples instead of four) since it runs
-// once per segment on a fast/cheap model - the full prompt still runs once,
-// on the stronger model, when the mic stops (extractItems), so anything
-// this pass gets wrong is still caught by an authoritative final pass.
-const OPS_SYSTEM_PROMPT = `You maintain a live Tamil grocery list ledger while someone dictates it out loud, one short speech segment at a time. You'll get the current committed list (each line "[id] name — quantity") and the newest segment they just said. Decide what operations to apply - don't reprocess the whole list, just react to this one new segment.
-
-Rules:
-- ADD a new item for something not already on the list.
-- UPDATE an existing item (same id) when this segment corrects its quantity ("இல்ல முக்கால் கிலோ" right after a wrong amount - replace, don't add) or adds more to it ("இன்னும் அரை கிலோ" - add to the existing quantity, e.g. 1 kg + 1/2 kg = "1 1/2 kg"). For an update, give the item's complete new state, not just the changed field.
-- REMOVE an existing item (same id) when the person explicitly cancels it ("வேணாம்", "அது வேண்டாம்", "எடுத்துடு").
-- A segment can produce multiple operations (e.g. two items mentioned in one breath) or zero (filler, chatter, or speech not about the list - "ம்ம்", talking to someone else, TV). Never guess an operation just to produce output.
-- The same base product with a different brand/variant/pack size than what's already on the list is a separate ADD, not an update of the existing line (e.g. "Aavin orange" after an existing "Aavin blue" line).
-- A bare number with no unit takes its unit from how that item is realistically sold (liquids in ml/L, loose solids in g/kg, countable items as "count") - flag needsConfirmation true, confirmationReason "inferred_unit". If genuinely no quantity was said for a new item, use quantity "1" and flag confirmationReason "default_quantity".
-- Vague quantities ("கொஞ்சம்") are a real answer - keep the quantity display as spoken, qtyValue/qtyUnit null, flag confirmationReason "vague_quantity".
-- Keep item names in Tamil as spoken, except phonetic English/brand transliterations ("ஹார்லிக்ஸ்" → "Horlicks") which get written in English.
-- Common brands, use these spellings on a confident phonetic match: Aavin, Arokya, Hatsun, Milky Mist, Gold Winner, Idhayam, Fortune, Sakthi, Aachi, MTR, 3 Roses, AVT, Bru, Aashirvaad. If unsure, keep the name as heard and flag confirmationReason "uncertain_brand".
-- If the person attaches a purpose/description ("சாம்பார்க்கு", "நல்லா பழுத்தது"), keep it in note.
-
-This is a live, incremental pass - it doesn't need to be perfect, a slower full re-check runs once dictation finishes.
-
-Example: committed list has "[live-0] தக்காளி — 1 kg". Segment "இன்னும் அரை கிலோ" → one UPDATE on live-0, quantity "1 1/2 kg", qtyValue 1.5.
-Example: committed list is empty. Segment "எண்ணெய் நூறு" → one ADD, name "எண்ணெய்", quantity "100 ml", qtyValue 100, qtyUnit "ml", needsConfirmation true, confirmationReason "inferred_unit".`;
-
-const OPS_SCHEMA = {
-	name: "list_operations",
-	strict: true,
-	schema: {
-		type: "object",
-		properties: {
-			operations: {
-				type: "array",
-				items: {
-					type: "object",
-					properties: {
-						op: { type: "string", enum: ["add", "update", "remove"] },
-						id: { type: ["string", "null"] },
-						item: {
-							type: ["object", "null"],
-							properties: ITEM_SCHEMA_PROPERTIES,
-							required: ITEM_SCHEMA_REQUIRED,
-							additionalProperties: false,
-						},
-					},
-					required: ["op", "id", "item"],
-					additionalProperties: false,
-				},
-			},
-		},
-		required: ["operations"],
-		additionalProperties: false,
-	},
-};
-
-export type ListOperation = {
-	op: "add" | "update" | "remove";
-	id: string | null;
-	item: Omit<DraftItem, "id"> | null;
-};
-
-function serializeCommittedList(items: DraftItem[]): string {
-	if (items.length === 0) return "(இதுவரை பொருட்கள் இல்லை)";
-	return items.map((item) => `[${item.id}] ${item.name} — ${item.quantity}`).join("\n");
-}
-
-export async function parseSegmentOps(committed: DraftItem[], segment: string): Promise<ListOperation[]> {
-	if (!segment.trim()) return [];
-
-	const custom = await getCustomInstructions();
-	const systemPrompt = custom
-		? `${OPS_SYSTEM_PROMPT}\n\nThe user has also given these additional standing instructions - follow them too:\n${custom}`
-		: OPS_SYSTEM_PROMPT;
-	const userContent = `Committed list:\n${serializeCommittedList(committed)}\n\nNew segment: "${segment}"`;
-
-	const result = await chatCompletion(LIVE_MODEL_ID, 700, systemPrompt, userContent, OPS_SCHEMA);
-	return parseOpsResponse(result);
-}
-
-// Pure reducer, no network - applying the operations is separate from
-// fetching them so RecordingScreen can call this synchronously once ops
-// come back, against whatever the live list has become since the call
-// started (see liveItemsRef there).
-export function applyOperations(items: DraftItem[], ops: ListOperation[], nextId: () => string): DraftItem[] {
-	let next = items;
-	for (const op of ops) {
-		if (op.op === "add" && op.item) {
-			next = [...next, { id: nextId(), ...op.item }];
-		} else if (op.op === "update" && op.id && op.item) {
-			const item = op.item;
-			next = next.map((existing) => (existing.id === op.id ? { id: existing.id, ...item } : existing));
-		} else if (op.op === "remove" && op.id) {
-			next = next.filter((existing) => existing.id !== op.id);
-		}
-	}
-	return next;
-}
-
-// --- Silent reconciliation (see RecordingScreen.tsx's handleDone) ---
-//
-// The live ledger already shows a list by the time "Done" runs the
-// authoritative full-transcript pass - swapping it wholesale would make the
-// live feature feel like it was only ever showing a draft. Instead, match
-// the authoritative result back onto the live items by name and report only
-// what's actually different, so the common case (the two agree) is
-// invisible - the caller only needs to touch the rows in changedIds.
+// Live segments and the final "Done" pass both call extractItems - the
+// exact same full-context parse, just on a faster/cheaper model
+// (LIVE_MODEL_ID) while dictating and on the user's selected model once.
+// An earlier version had the live pass emit add/update/remove operations
+// against a serialized "committed state" instead of a full re-parse - that
+// asked a fast model to make an artificial diff judgment call on every
+// segment (does this change existing state, or not?), which is exactly the
+// kind of ambiguous decision fast models get wrong under pressure, and it
+// caused items to vanish mid-dictation with no visible cause. A full
+// re-parse doesn't have that failure mode - it just derives the correct
+// list from the transcript-so-far every time, the same thing extractItems
+// already does reliably. reconcileWithLive then diffs that fresh result
+// against whatever's already showing and reports only what's actually
+// different, so the common case (nothing changed) is invisible and the
+// caller only needs to touch the rows in changedIds.
 export function reconcileWithLive(live: DraftItem[], authoritative: DraftItem[]): { merged: DraftItem[]; changedIds: string[] } {
 	const usedAuthoritativeIndexes = new Set<number>();
 	const changedIds: string[] = [];
@@ -393,24 +298,6 @@ export function reconcileWithLive(live: DraftItem[], authoritative: DraftItem[])
 
 function itemsMatch(a: DraftItem, b: DraftItem): boolean {
 	return a.quantity === b.quantity && a.brand === b.brand && a.variant === b.variant && a.note === b.note && a.needsConfirmation === b.needsConfirmation;
-}
-
-function parseOpsResponse(result: unknown): ListOperation[] {
-	const content = (result as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
-	const parsed = typeof content === "string" ? safeJsonParse(content) : content;
-	const operations = (parsed as { operations?: unknown })?.operations;
-	const entries = Array.isArray(operations) ? (operations as Array<{ op?: unknown; id?: unknown; item?: unknown }>) : [];
-
-	const ops: ListOperation[] = [];
-	for (const entry of entries) {
-		if (entry.op !== "add" && entry.op !== "update" && entry.op !== "remove") continue;
-		const id = typeof entry.id === "string" ? entry.id : null;
-		const item = entry.item && typeof entry.item === "object" ? toDraftItemFields(entry.item as RawItem) : null;
-		if (entry.op !== "remove" && !item) continue;
-		if (entry.op !== "add" && !id) continue;
-		ops.push({ op: entry.op, id, item });
-	}
-	return ops;
 }
 
 export async function categorizeItems(items: DraftItem[], model: string): Promise<ListItem[]> {

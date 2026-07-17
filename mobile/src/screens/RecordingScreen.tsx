@@ -24,18 +24,16 @@ import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
 import { SettingsScreen } from "./SettingsScreen";
 import {
-	applyOperations,
 	categorizeItems,
 	estimatePrices,
 	extractItems,
 	OpenRouterLimitExceededError,
 	OpenRouterNotConnectedError,
-	parseSegmentOps,
 	reconcileWithLive,
 } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
 import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
-import { DEFAULT_MODEL_ID } from "../lib/models";
+import { DEFAULT_MODEL_ID, LIVE_MODEL_ID } from "../lib/models";
 import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey, isAutoProvisionedKey } from "../lib/openrouterAuth";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
@@ -92,17 +90,20 @@ export function RecordingScreen() {
 	const [segments, setSegments] = useState<string[]>([]);
 	const [listening, setListening] = useState(false);
 	const [micError, setMicError] = useState<string | null>(null);
-	// Live ledger, ticking in while the person is still talking (see
-	// extract.ts's parseSegmentOps) - liveItemsRef mirrors liveItems so the
-	// sequential ops queue below always reads the latest state instead of a
-	// stale closure. opsChainRef serializes segment calls so two in-flight
-	// ops results can't race and clobber each other applying against the
-	// same base state.
+	// Live ledger, ticking in while the person is still talking. Each
+	// finalized segment triggers a full extractItems re-parse of the whole
+	// transcript-so-far on the fast/cheap model (LIVE_MODEL_ID) - not an
+	// incremental diff against a serialized state, which is what an earlier
+	// version did and which caused items to vanish unpredictably (see
+	// extract.ts's reconcileWithLive comment for why). liveItemsRef/
+	// segmentsRef mirror their state so the sequential queue below always
+	// reads the latest values instead of a stale closure. opsChainRef
+	// serializes the calls so two in-flight re-parses can't race each other.
 	const [liveItems, setLiveItems] = useState<DraftItem[]>([]);
 	const [pendingSegments, setPendingSegments] = useState<string[]>([]);
 	const liveItemsRef = useRef<DraftItem[]>([]);
+	const segmentsRef = useRef<string[]>([]);
 	const opsChainRef = useRef<Promise<void>>(Promise.resolve());
-	const liveIdCounterRef = useRef(0);
 	// finalized: mic session ended, controls switch from mic/Done to
 	// Organize/share - the list itself stays liveItems throughout, no screen
 	// swap. reconciling/highlightedIds back the silent reconciliation pass
@@ -185,38 +186,46 @@ export function RecordingScreen() {
 		liveItemsRef.current = liveItems;
 	}, [liveItems]);
 
-	const nextLiveId = useCallback(() => `live-${liveIdCounterRef.current++}`, []);
+	useEffect(() => {
+		segmentsRef.current = segments;
+	}, [segments]);
 
-	// Runs one segment's ops call and applies the result - queued via
-	// opsChainRef in addSegment below so calls never overlap. Failures are
-	// swallowed on purpose: a segment that fails to parse live just never
-	// ticks into the ledger, but it's still in `segments` and gets caught by
-	// the authoritative full pass in handleDone, so nothing is lost.
-	const runSegmentOps = useCallback(
-		async (segmentText: string) => {
-			try {
-				const ops = await parseSegmentOps(liveItemsRef.current, segmentText);
-				if (ops.length > 0) setLiveItems((prev) => applyOperations(prev, ops, nextLiveId));
-			} catch (error) {
-				console.error("Live segment parse failed - the final pass on Done will still catch it", error);
-			} finally {
-				setPendingSegments((prev) => {
-					const index = prev.indexOf(segmentText);
-					if (index === -1) return prev;
-					return [...prev.slice(0, index), ...prev.slice(index + 1)];
-				});
+	// Runs one segment's re-parse and applies only what changed - queued via
+	// opsChainRef in addSegment below so calls never overlap and each one
+	// diffs against the true latest state. Failures are swallowed on
+	// purpose: a segment that fails to parse live just doesn't update the
+	// ledger, but it's still in `segments` and gets caught by the
+	// authoritative full pass in handleDone, so nothing is lost.
+	const runSegmentReparse = useCallback(async (transcriptSoFar: string, segmentText: string) => {
+		try {
+			const authoritative = await extractItems(transcriptSoFar, LIVE_MODEL_ID);
+			const { merged, changedIds } = reconcileWithLive(liveItemsRef.current, authoritative);
+			setLiveItems(merged);
+			if (changedIds.length > 0) {
+				setHighlightedIds((prev) => [...new Set([...prev, ...changedIds])]);
+				setTimeout(() => {
+					setHighlightedIds((prev) => prev.filter((id) => !changedIds.includes(id)));
+				}, 1200);
 			}
-		},
-		[nextLiveId],
-	);
+		} catch (error) {
+			console.error("Live segment re-parse failed - the final pass on Done will still catch it", error);
+		} finally {
+			setPendingSegments((prev) => {
+				const index = prev.indexOf(segmentText);
+				if (index === -1) return prev;
+				return [...prev.slice(0, index), ...prev.slice(index + 1)];
+			});
+		}
+	}, []);
 
 	const addSegment = useCallback(
 		(text: string) => {
+			const transcriptSoFar = [...segmentsRef.current, text].join(" ");
 			setSegments((prev) => [...prev, text]);
 			setPendingSegments((prev) => [...prev, text]);
-			opsChainRef.current = opsChainRef.current.then(() => runSegmentOps(text));
+			opsChainRef.current = opsChainRef.current.then(() => runSegmentReparse(transcriptSoFar, text));
 		},
-		[runSegmentOps],
+		[runSegmentReparse],
 	);
 
 	useSpeechRecognitionEvent("start", () => setListening(true));
@@ -309,7 +318,6 @@ export function RecordingScreen() {
 		setSegments([]);
 		setLiveItems([]);
 		setPendingSegments([]);
-		liveIdCounterRef.current = 0;
 		opsChainRef.current = Promise.resolve();
 		setFinalized(false);
 		setReconciling(false);
