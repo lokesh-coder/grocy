@@ -23,7 +23,7 @@ const OAUTH_CALLBACK_URL = "https://grocy.store/auth-callback";
 // without requiring an OpenRouter account first. Only ever called once per
 // install, when no key exists yet - after that the app talks to OpenRouter
 // directly with whatever key it has stored.
-const PROVISION_URL = "https://grocy-provision.notesane.workers.dev/provision-key";
+const PROVISION_URL = "https://grocy-provision.mexican-dirtyfellow.workers.dev/provision-key";
 
 const KEY_STORE_KEY = "grocy-openrouter-key";
 const IS_AUTO_KEY_STORE_KEY = "grocy-openrouter-key-is-auto";
