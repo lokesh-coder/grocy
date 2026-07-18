@@ -15,15 +15,12 @@ import {
 import { PressableScale } from "../components/PressableScale";
 import { AccentButton } from "../components/AccentButton";
 import { LoaderDots } from "../components/LoaderDots";
-import { MODEL_OPTIONS } from "../lib/models";
 import { getCustomInstructions, setCustomInstructions } from "../lib/customInstructions";
 import { colors, fontFamily, radius } from "../theme/tokens";
 import appJson from "../../app.json";
 
 type Props = {
 	onClose: () => void;
-	selectedModel: string;
-	onSelectModel: (id: string) => void;
 	connected: boolean;
 	isAuto: boolean;
 	connecting: boolean;
@@ -34,7 +31,7 @@ type Props = {
 const HELP_SECTIONS: Array<{ title: string; body: string }> = [
 	{
 		title: "எப்படி பயன்படுத்துவது",
-		body: 'மைக் பொத்தானை அழுத்தி, தமிழில் பேசுங்கள் - தயங்கினாலும், திருத்தினாலும், மனது மாறினாலும் பரவாயில்லை. முடிந்ததும் "முடிந்தது" (✓) பொத்தானை அழுத்தவும். பட்டியல் தயார். வேண்டுமானால் "வகைப்படுத்தி விலை காட்டு"-வை அழுத்தி, பொருட்களை வகைப்படி பிரித்து, மதிப்பீட்டு விலையையும் பார்க்கலாம். இறுதியாக WhatsApp-லோ வேறு எங்காவதோ பகிரலாம்.',
+		body: 'மைக் பொத்தானை அழுத்தி, தமிழில் பேசுங்கள் - தயங்கினாலும், திருத்தினாலும், மனது மாறினாலும் பரவாயில்லை. பட்டியல் பேசும்போதே தானாகத் தயாராகும். முடிந்ததும் மைக் பொத்தானை மீண்டும் அழுத்தவும் - "தொடரவும்", "பகிரவும்", "புதியது" பொத்தான்கள் தோன்றும். வேண்டுமானால் "வகைப்படுத்தி விலை காட்டு"-வை அழுத்தி, பொருட்களை வகைப்படி பிரித்து, மதிப்பீட்டு விலையையும் பார்க்கலாம். "தொடரவும்" அழுத்தி பேச்சைத் தொடரலாம், அல்லது WhatsApp-லோ வேறு எங்காவதோ பகிரலாம்.',
 	},
 	{
 		title: "கணக்கு தேவையா?",
@@ -50,16 +47,7 @@ const HELP_SECTIONS: Array<{ title: string; body: string }> = [
 	},
 ];
 
-export function SettingsScreen({
-	onClose,
-	selectedModel,
-	onSelectModel,
-	connected,
-	isAuto,
-	connecting,
-	onConnect,
-	onDisconnect,
-}: Props) {
+export function SettingsScreen({ onClose, connected, isAuto, connecting, onConnect, onDisconnect }: Props) {
 	const insets = useSafeAreaInsets();
 	const [instructions, setInstructions] = useState("");
 	const [savedInstructions, setSavedInstructions] = useState("");
@@ -139,27 +127,6 @@ export function SettingsScreen({
 							)}
 						</AccentButton>
 					)}
-				</View>
-
-				{/* Model */}
-				<Text style={styles.sectionLabel}>மாடல்</Text>
-				<View style={styles.card}>
-					{MODEL_OPTIONS.map((option, i) => {
-						const selected = option.id === selectedModel;
-						return (
-							<PressableScale
-								key={option.id}
-								style={[styles.option, i > 0 && styles.optionSpacing, selected && styles.optionSelected]}
-								onPress={() => onSelectModel(option.id)}
-							>
-								<View style={styles.optionText}>
-									<Text style={styles.optionLabel}>{option.label}</Text>
-									<Text style={styles.optionDescription}>{option.description}</Text>
-								</View>
-								{selected && <CheckCircleIcon weight="fill" size={20} color={colors.accent} />}
-							</PressableScale>
-						);
-					})}
 				</View>
 
 				{/* Custom instructions */}
@@ -331,37 +298,8 @@ const styles = StyleSheet.create({
 		fontFamily: fontFamily.bold,
 		color: colors.accent,
 	},
-	option: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		gap: 12,
-		paddingHorizontal: 12,
-		paddingVertical: 10,
-		borderRadius: radius.sm,
-		borderWidth: 1,
-		borderColor: colors.border,
-	},
 	optionSpacing: {
 		marginTop: 0,
-	},
-	optionSelected: {
-		borderColor: colors.accent,
-		backgroundColor: colors.accentSoft,
-	},
-	optionText: {
-		flex: 1,
-		gap: 2,
-	},
-	optionLabel: {
-		fontSize: 14,
-		fontFamily: fontFamily.bold,
-		color: colors.text,
-	},
-	optionDescription: {
-		fontSize: 11,
-		fontFamily: fontFamily.medium,
-		color: colors.textMuted,
 	},
 	instructionsInput: {
 		borderWidth: 1,

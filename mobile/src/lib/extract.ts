@@ -5,9 +5,10 @@
 // that file if it still exists, or treat this as the sole copy once it's
 // been removed.
 import { CATEGORY_IDS, type CategoryId } from "../shared/categories";
-import type { ConfirmationReason, DraftItem, ListItem } from "../shared/types";
+import type { ConfirmationReason, Item } from "../shared/types";
 import { ensureOpenRouterKey } from "./openrouterAuth";
 import { getCustomInstructions } from "./customInstructions";
+import { MODEL_ID } from "./models";
 
 const REASONING_EFFORT = "low";
 
@@ -176,7 +177,7 @@ const PRICE_SCHEMA = {
 	},
 };
 
-async function chatCompletion(model: string, maxTokens: number, systemPrompt: string, userContent: string, schema: unknown) {
+async function chatCompletion(maxTokens: number, systemPrompt: string, userContent: string, schema: unknown, onlineSearch = false) {
 	const key = await ensureOpenRouterKey();
 	if (!key) throw new OpenRouterNotConnectedError();
 
@@ -187,7 +188,7 @@ async function chatCompletion(model: string, maxTokens: number, systemPrompt: st
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
-			model,
+			model: onlineSearch ? `${MODEL_ID}:online` : MODEL_ID,
 			max_tokens: maxTokens,
 			temperature: 0,
 			reasoning: { effort: REASONING_EFFORT },
@@ -209,7 +210,7 @@ async function chatCompletion(model: string, maxTokens: number, systemPrompt: st
 	return response.json();
 }
 
-export async function extractItems(transcript: string, model: string): Promise<DraftItem[]> {
+export async function extractItems(transcript: string): Promise<Item[]> {
 	if (!transcript.trim()) return [];
 
 	const custom = await getCustomInstructions();
@@ -217,12 +218,12 @@ export async function extractItems(transcript: string, model: string): Promise<D
 		? `${SYSTEM_PROMPT}\n\nThe user has also given you these additional standing instructions - follow them too, alongside everything above:\n${custom}`
 		: SYSTEM_PROMPT;
 
-	const result = await chatCompletion(model, 4500, systemPrompt, transcript, ITEMS_SCHEMA);
+	const result = await chatCompletion(4500, systemPrompt, transcript, ITEMS_SCHEMA);
 	const rawItems = parseItemsResponse(result);
 
 	return rawItems.map((item, index) => ({
 		id: `item-${index}`,
-		...toDraftItemFields(item),
+		...toItemFields(item),
 	}));
 }
 
@@ -232,7 +233,7 @@ function nullableString(value: unknown): string | null {
 	return trimmed ? trimmed : null;
 }
 
-function toDraftItemFields(item: RawItem): Omit<DraftItem, "id"> {
+function toItemFields(item: RawItem): Omit<Item, "id"> {
 	return {
 		name: String(item.name ?? "").trim(),
 		brand: nullableString(item.brand),
@@ -245,83 +246,44 @@ function toDraftItemFields(item: RawItem): Omit<DraftItem, "id"> {
 		},
 		note: nullableString(item.note),
 		priceNote: nullableString(item.priceNote),
+		category: null,
+		estimatedPrice: null,
 		needsConfirmation: Boolean(item.needsConfirmation),
 		confirmationReason: isConfirmationReason(item.confirmationReason) ? item.confirmationReason : null,
 	};
 }
 
-// --- Reconciliation (see RecordingScreen.tsx) ---
+// --- On-demand enrichment (see RecordingScreen.tsx's Organize action) ---
 //
-// Live segments and the final "Done" pass both call extractItems - the
-// exact same full-context parse, just on a faster/cheaper model
-// (LIVE_MODEL_ID) while dictating and on the user's selected model once.
-// An earlier version had the live pass emit add/update/remove operations
-// against a serialized "committed state" instead of a full re-parse - that
-// asked a fast model to make an artificial diff judgment call on every
-// segment (does this change existing state, or not?), which is exactly the
-// kind of ambiguous decision fast models get wrong under pressure, and it
-// caused items to vanish mid-dictation with no visible cause. A full
-// re-parse doesn't have that failure mode - it just derives the correct
-// list from the transcript-so-far every time, the same thing extractItems
-// already does reliably. reconcileWithLive then diffs that fresh result
-// against whatever's already showing and reports only what's actually
-// different, so the common case (nothing changed) is invisible and the
-// caller only needs to touch the rows in changedIds.
-export function reconcileWithLive(live: DraftItem[], authoritative: DraftItem[]): { merged: DraftItem[]; changedIds: string[] } {
-	const usedAuthoritativeIndexes = new Set<number>();
-	const changedIds: string[] = [];
-	const merged: DraftItem[] = [];
-
-	for (const liveItem of live) {
-		const matchIndex = authoritative.findIndex((item, index) => !usedAuthoritativeIndexes.has(index) && item.name === liveItem.name);
-		if (matchIndex === -1) {
-			// The authoritative pass dropped this item (mis-heard, cancelled).
-			changedIds.push(liveItem.id);
-			continue;
-		}
-		usedAuthoritativeIndexes.add(matchIndex);
-		const authoritativeItem = authoritative[matchIndex];
-		if (!itemsMatch(liveItem, authoritativeItem)) changedIds.push(liveItem.id);
-		merged.push({ ...authoritativeItem, id: liveItem.id });
-	}
-
-	authoritative.forEach((item, index) => {
-		if (usedAuthoritativeIndexes.has(index)) return;
-		// Something the live pass missed entirely.
-		const id = `reconciled-${index}-${Date.now()}`;
-		merged.push({ ...item, id });
-		changedIds.push(id);
-	});
-
-	return { merged, changedIds };
+// category/estimatedPrice stay null through live parsing and editing - they
+// only get filled when the user explicitly asks (the "Organize" button).
+// Two OpenRouter calls under one entry point: categorize first (fast,
+// cheap), then a web-search-grounded price lookup (slower, best-effort - a
+// failure here still returns the categorized items rather than losing the
+// list).
+export async function enrichItems(items: Item[]): Promise<Item[]> {
+	if (items.length === 0) return items;
+	const categorized = await categorizeItems(items);
+	return estimatePrices(categorized);
 }
 
-function itemsMatch(a: DraftItem, b: DraftItem): boolean {
-	return a.quantity === b.quantity && a.brand === b.brand && a.variant === b.variant && a.note === b.note && a.needsConfirmation === b.needsConfirmation;
-}
-
-export async function categorizeItems(items: DraftItem[], model: string): Promise<ListItem[]> {
-	if (items.length === 0) return [];
-
+async function categorizeItems(items: Item[]): Promise<Item[]> {
 	const numberedList = items.map((item, index) => `${index}. ${item.name}`).join("\n");
-	const result = await chatCompletion(model, 1500, CATEGORIZE_SYSTEM_PROMPT, numberedList, CATEGORIZE_SCHEMA);
+	const result = await chatCompletion(1500, CATEGORIZE_SYSTEM_PROMPT, numberedList, CATEGORIZE_SCHEMA);
 	const categoryByIndex = parseCategoriesResponse(result);
 
 	return items.map((item, index) => ({
 		...item,
 		category: categoryByIndex.get(index) ?? "other",
-		estimatedPrice: null,
 	}));
 }
 
-export async function estimatePrices(items: ListItem[], model: string): Promise<ListItem[]> {
-	if (items.length === 0) return items;
-
+async function estimatePrices(items: Item[]): Promise<Item[]> {
 	const numberedList = items.map((item, index) => `${index}. ${item.name} - ${item.quantity}`).join("\n");
 
 	let result: unknown;
 	try {
-		result = await chatCompletion(`${model}:online`, 2000, PRICE_SYSTEM_PROMPT, numberedList, PRICE_SCHEMA);
+		result = await chatCompletion(2000, PRICE_SYSTEM_PROMPT, numberedList, PRICE_SCHEMA, true);
 	} catch (error) {
 		// Pricing is a nice-to-have enrichment, not core to the list - a
 		// network hiccup here shouldn't block showing the list itself.

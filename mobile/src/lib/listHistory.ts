@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { DraftItem } from "../shared/types";
+import type { Item } from "../shared/types";
 
 // Replaces the old server-backed "last list" (by slug) and "frequent items"
 // (D1 aggregate query) now that there's no shared backend state - history
@@ -8,7 +8,7 @@ import type { DraftItem } from "../shared/types";
 const HISTORY_KEY = "grocy-list-history";
 const MAX_HISTORY = 30;
 
-type StoredList = { items: DraftItem[]; savedAt: number };
+type StoredList = { items: Item[]; savedAt: number };
 
 async function readHistory(): Promise<StoredList[]> {
 	const raw = await AsyncStorage.getItem(HISTORY_KEY);
@@ -20,13 +20,13 @@ async function readHistory(): Promise<StoredList[]> {
 	}
 }
 
-export async function saveFinalizedList(items: DraftItem[]): Promise<void> {
+export async function saveFinalizedList(items: Item[]): Promise<void> {
 	const history = await readHistory();
 	history.unshift({ items, savedAt: Date.now() });
 	await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
 }
 
-export async function getLastList(): Promise<DraftItem[] | null> {
+export async function getLastList(): Promise<Item[] | null> {
 	const history = await readHistory();
 	return history[0]?.items ?? null;
 }
@@ -35,7 +35,7 @@ export async function getLastList(): Promise<DraftItem[] | null> {
 // post-finalize) instead of pushing a new one - a delete isn't a new list,
 // and unshifting here would double-count this list in the frequency
 // ranking below.
-export async function updateLastList(items: DraftItem[]): Promise<void> {
+export async function updateLastList(items: Item[]): Promise<void> {
 	const history = await readHistory();
 	if (history.length === 0) {
 		history.unshift({ items, savedAt: Date.now() });

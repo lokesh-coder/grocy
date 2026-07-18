@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import {
 	BasketIcon,
 	ClockIcon,
 	FilePlusIcon,
 	GearIcon,
 	MagicWandIcon,
-	SealCheckIcon,
+	MicrophoneIcon,
 	ShareNetworkIcon,
 	ShoppingBagIcon,
 	TrashSimpleIcon,
@@ -23,23 +24,14 @@ import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
 import { SettingsScreen } from "./SettingsScreen";
-import {
-	categorizeItems,
-	estimatePrices,
-	extractItems,
-	OpenRouterLimitExceededError,
-	OpenRouterNotConnectedError,
-	reconcileWithLive,
-} from "../lib/extract";
+import { enrichItems, extractItems, OpenRouterLimitExceededError, OpenRouterNotConnectedError } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
-import { getSelectedModel, setSelectedModel } from "../lib/modelSettings";
-import { DEFAULT_MODEL_ID, LIVE_MODEL_ID } from "../lib/models";
 import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey, isAutoProvisionedKey } from "../lib/openrouterAuth";
 import { CATEGORIES } from "../shared/categories";
 import { categoryColor } from "../lib/categoryColors";
 import { categoryIcon } from "../lib/categoryIcons";
-import { colors, fontFamily, radius } from "../theme/tokens";
-import type { ConfirmationReason, DraftItem, ListItem } from "../shared/types";
+import { colors, duration, fontFamily, radius } from "../theme/tokens";
+import type { ConfirmationReason, Item } from "../shared/types";
 
 const REASON_LABELS: Record<ConfirmationReason, string> = {
 	vague_quantity: "தெளிவற்ற அளவு",
@@ -50,36 +42,29 @@ const REASON_LABELS: Record<ConfirmationReason, string> = {
 	ambiguous_merge: "தெளிவற்ற இணைப்பு",
 };
 
-type FrequentItem = { name: string; quantity: string };
+// How long to wait after the last finalized speech segment before actually
+// calling the model - talking fast otherwise queues up one full-context call
+// per segment and the visible list lags noticeably behind speech.
+const LIVE_REPARSE_DEBOUNCE_MS = 550;
 
-// Uniform treatment for all three - no WhatsApp size/color emphasis, no
-// per-icon color tinting. Reading as one cohesive row of equal-weight
-// actions is the point (see the design-system discussion in this commit).
-// Fun comes from each icon's own duotone color pair, not from varying the
-// button shape/size/background - that keeps the row visually consistent
-// while still giving each action its own identity.
-type ShareAction = "new" | "whatsapp" | "share";
+type ShareAction = "continue" | "whatsapp" | "share" | "clear";
 const SHARE_ACTIONS: Array<{ action: ShareAction; Icon: Icon; label: string; color: string }> = [
-	{ action: "new", Icon: FilePlusIcon, label: "புதிய பட்டியல்", color: colors.fun.sage },
+	{ action: "continue", Icon: MicrophoneIcon, label: "தொடரவும்", color: colors.fun.sage },
 	{ action: "whatsapp", Icon: WhatsappLogoIcon, label: "WhatsApp", color: colors.fun.blue },
 	{ action: "share", Icon: ShareNetworkIcon, label: "பகிரவும்", color: colors.fun.berry },
+	{ action: "clear", Icon: FilePlusIcon, label: "புதியது", color: colors.fun.gold },
 ];
 
-// There's no shared/live list anymore (see the backend simplification) - a
-// finished list is shared as plain formatted text over the OS share sheet,
-// not a link. Includes prices/total only once "Organize" has actually run.
-function buildShareText(items: DraftItem[], organizedItems: ListItem[] | null): string {
-	const lineFor = (item: DraftItem | ListItem, price?: number | null) =>
-		`• ${item.name} — ${item.quantity}${price != null ? ` · ₹${Math.round(price)}` : ""}${item.note ? ` (${item.note})` : ""}`;
-	const lines = organizedItems ? organizedItems.map((item) => lineFor(item, item.estimatedPrice)) : items.map((item) => lineFor(item));
+function buildShareText(items: Item[]): string {
+	const priced = items.filter((item) => item.estimatedPrice != null);
+	const lines = items.map(
+		(item) => `• ${item.name} — ${item.quantity}${item.estimatedPrice != null ? ` · ₹${Math.round(item.estimatedPrice)}` : ""}${item.note ? ` (${item.note})` : ""}`,
+	);
 	let text = `மளிகை பட்டியல்:\n${lines.join("\n")}`;
 
-	if (organizedItems) {
-		const priced = organizedItems.filter((item) => item.estimatedPrice != null);
-		if (priced.length > 0) {
-			const total = priced.reduce((sum, item) => sum + (item.estimatedPrice ?? 0), 0);
-			text += `\n\nமதிப்பிடப்பட்ட மொத்தம்: ₹${Math.round(total)}`;
-		}
+	if (priced.length > 0) {
+		const total = priced.reduce((sum, item) => sum + (item.estimatedPrice ?? 0), 0);
+		text += `\n\nமதிப்பிடப்பட்ட மொத்தம்: ₹${Math.round(total)}`;
 	}
 
 	return text;
@@ -87,43 +72,50 @@ function buildShareText(items: DraftItem[], organizedItems: ListItem[] | null): 
 
 export function RecordingScreen() {
 	const insets = useSafeAreaInsets();
+	// The raw transcript, one entry per finalized speech segment - the sole
+	// input to every live re-parse (see runLiveReparse below). Never edited or
+	// trimmed by manual actions (delete, enrich) - only appended to while
+	// recording and cleared on Clear.
 	const [segments, setSegments] = useState<string[]>([]);
 	const [listening, setListening] = useState(false);
 	const [micError, setMicError] = useState<string | null>(null);
-	// Live ledger, ticking in while the person is still talking. Each
-	// finalized segment triggers a full extractItems re-parse of the whole
-	// transcript-so-far on the fast/cheap model (LIVE_MODEL_ID) - not an
-	// incremental diff against a serialized state, which is what an earlier
-	// version did and which caused items to vanish unpredictably (see
-	// extract.ts's reconcileWithLive comment for why). liveItemsRef/
-	// segmentsRef mirror their state so the sequential queue below always
-	// reads the latest values instead of a stale closure. opsChainRef
-	// serializes the calls so two in-flight re-parses can't race each other.
-	const [liveItems, setLiveItems] = useState<DraftItem[]>([]);
-	const [pendingSegments, setPendingSegments] = useState<string[]>([]);
-	const liveItemsRef = useRef<DraftItem[]>([]);
+	// The one and only list state - always either the result of the latest
+	// live re-parse, an on-demand enrichment, or a manual edit. No separate
+	// "draft" vs "organized" shape (see shared/types.ts's Item) and no
+	// per-row diffing against the previous value - refreshing below just
+	// dims the whole list while a fresh result is in flight, then swaps it
+	// in wholesale.
+	const [items, setItems] = useState<Item[]>([]);
+	const [refreshing, setRefreshing] = useState(false);
+	const [enriching, setEnriching] = useState(false);
+	const itemsRef = useRef<Item[]>([]);
 	const segmentsRef = useRef<string[]>([]);
-	const opsChainRef = useRef<Promise<void>>(Promise.resolve());
-	// finalized: mic session ended, controls switch from mic/Done to
-	// Organize/share - the list itself stays liveItems throughout, no screen
-	// swap. reconciling/highlightedIds back the silent reconciliation pass
-	// (see handleDone) - the authoritative full-transcript result is diffed
-	// against liveItems and only the rows that actually changed are flagged,
-	// instead of replacing the whole visible list.
-	const [finalized, setFinalized] = useState(false);
-	const [reconciling, setReconciling] = useState(false);
-	const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
-	const [organizedItems, setOrganizedItems] = useState<ListItem[] | null>(null);
-	const [organizing, setOrganizing] = useState(false);
-	const [lastList, setLastList] = useState<DraftItem[] | null>(null);
-	const [frequentItems, setFrequentItems] = useState<FrequentItem[]>([]);
-	const [model, setModel] = useState(DEFAULT_MODEL_ID);
+	// Guards against a stale response overwriting a newer one when two live
+	// calls happen to be in flight at once (slow network + fast talking) -
+	// only the response whose id still matches the latest issued gets
+	// applied. Replaces the old opsChainRef serialization entirely: there's
+	// no ordered queue to maintain, just "does anyone care about this
+	// response anymore".
+	const requestIdRef = useRef(0);
+	const inFlightRef = useRef<Promise<void>>(Promise.resolve());
+	const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [lastList, setLastList] = useState<Item[] | null>(null);
+	const [frequentItems, setFrequentItems] = useState<{ name: string; quantity: string }[]>([]);
 	const [settingsVisible, setSettingsVisible] = useState(false);
 	const [connected, setConnected] = useState(false);
 	const [connecting, setConnecting] = useState(false);
 	const [isAuto, setIsAuto] = useState(false);
 
-	const hasContent = segments.length > 0 || finalized;
+	// Stopped-with-content is the only "mode" this screen has - everything
+	// else (empty state vs list, mic vs share/clear/continue row) derives
+	// from these two booleans, not a stored flag.
+	const stopped = !listening && items.length > 0;
+
+	const refreshOpacity = useSharedValue(1);
+	useEffect(() => {
+		refreshOpacity.value = withTiming(refreshing ? 0.45 : 1, { duration: duration.base });
+	}, [refreshing, refreshOpacity]);
+	const refreshAnimatedStyle = useAnimatedStyle(() => ({ opacity: refreshOpacity.value }));
 
 	const refreshConnectionState = useCallback(async () => {
 		const key = await getOpenRouterKey();
@@ -133,7 +125,6 @@ export function RecordingScreen() {
 
 	useEffect(() => {
 		getLastList().then(setLastList);
-		getSelectedModel().then(setModel);
 		refreshConnectionState();
 		getFrequentItems()
 			.then(setFrequentItems)
@@ -144,8 +135,7 @@ export function RecordingScreen() {
 
 	// A free key can be auto-provisioned mid-request (see extract.ts) without
 	// ever going through handleConnect, so this is the one place that needs
-	// to react to OpenRouter-specific failures from any of the three calls -
-	// shared so "Done" and "Organize" both word the prompt the same way.
+	// to react to OpenRouter-specific failures from any call.
 	function handleOpenRouterError(error: unknown) {
 		if (error instanceof OpenRouterLimitExceededError) {
 			Alert.alert("இலவச வரம்பு முடிந்தது", "இந்த மாத இலவச பயன்பாடு முடிந்துவிட்டது. தொடர உங்கள் சொந்த OpenRouter கணக்கை இணைக்கவும்.", [
@@ -158,11 +148,6 @@ export function RecordingScreen() {
 		} else {
 			Alert.alert("பிழை", error instanceof Error ? error.message : String(error));
 		}
-	}
-
-	async function handleSelectModel(id: string) {
-		setModel(id);
-		await setSelectedModel(id);
 	}
 
 	async function handleConnect() {
@@ -183,49 +168,65 @@ export function RecordingScreen() {
 	}
 
 	useEffect(() => {
-		liveItemsRef.current = liveItems;
-	}, [liveItems]);
+		itemsRef.current = items;
+	}, [items]);
 
 	useEffect(() => {
 		segmentsRef.current = segments;
 	}, [segments]);
 
-	// Runs one segment's re-parse and applies only what changed - queued via
-	// opsChainRef in addSegment below so calls never overlap and each one
-	// diffs against the true latest state. Failures are swallowed on
-	// purpose: a segment that fails to parse live just doesn't update the
-	// ledger, but it's still in `segments` and gets caught by the
-	// authoritative full pass in handleDone, so nothing is lost.
-	const runSegmentReparse = useCallback(async (transcriptSoFar: string, segmentText: string) => {
+	// The one live re-parse call, always deriving the full list fresh from
+	// the transcript-so-far (see segmentsRef) - never a diff against what's
+	// currently showing. silent=true (the debounced mid-dictation path)
+	// swallows failures since the next segment or the stop-flush will retry;
+	// silent=false (the stop-flush path) rethrows so the caller can surface
+	// an OpenRouter error to the user.
+	const runLiveReparse = useCallback(async (silent: boolean) => {
+		const transcriptSoFar = segmentsRef.current.join(" ");
+		const myRequestId = ++requestIdRef.current;
+		setRefreshing(true);
 		try {
-			const authoritative = await extractItems(transcriptSoFar, LIVE_MODEL_ID);
-			const { merged, changedIds } = reconcileWithLive(liveItemsRef.current, authoritative);
-			setLiveItems(merged);
-			if (changedIds.length > 0) {
-				setHighlightedIds((prev) => [...new Set([...prev, ...changedIds])]);
-				setTimeout(() => {
-					setHighlightedIds((prev) => prev.filter((id) => !changedIds.includes(id)));
-				}, 1200);
-			}
+			const result = await extractItems(transcriptSoFar);
+			if (requestIdRef.current === myRequestId) setItems(result);
 		} catch (error) {
-			console.error("Live segment re-parse failed - the final pass on Done will still catch it", error);
+			if (!silent) throw error;
+			console.error("Live re-parse failed - will retry on the next segment or when recording stops", error);
 		} finally {
-			setPendingSegments((prev) => {
-				const index = prev.indexOf(segmentText);
-				if (index === -1) return prev;
-				return [...prev.slice(0, index), ...prev.slice(index + 1)];
-			});
+			if (requestIdRef.current === myRequestId) setRefreshing(false);
 		}
 	}, []);
 
+	const scheduleLiveReparse = useCallback(() => {
+		if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+		debounceTimerRef.current = setTimeout(() => {
+			debounceTimerRef.current = null;
+			inFlightRef.current = runLiveReparse(true);
+		}, LIVE_REPARSE_DEBOUNCE_MS);
+	}, [runLiveReparse]);
+
+	// Called when recording stops (see the listening-transition effect below)
+	// - cancels any pending debounce, lets whatever's already in flight
+	// settle, then runs one authoritative, non-silent call so the final list
+	// is always derived from the complete transcript on the one shared model,
+	// and any connection error actually reaches the user at the moment they
+	// expect a finished list.
+	const flushLiveReparse = useCallback(async () => {
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+		await inFlightRef.current.catch(() => {});
+		const call = runLiveReparse(false);
+		inFlightRef.current = call.catch(() => {});
+		await call;
+	}, [runLiveReparse]);
+
 	const addSegment = useCallback(
 		(text: string) => {
-			const transcriptSoFar = [...segmentsRef.current, text].join(" ");
 			setSegments((prev) => [...prev, text]);
-			setPendingSegments((prev) => [...prev, text]);
-			opsChainRef.current = opsChainRef.current.then(() => runSegmentReparse(transcriptSoFar, text));
+			scheduleLiveReparse();
 		},
-		[runSegmentReparse],
+		[scheduleLiveReparse],
 	);
 
 	useSpeechRecognitionEvent("start", () => setListening(true));
@@ -240,11 +241,7 @@ export function RecordingScreen() {
 		setListening(false);
 	});
 
-	async function toggleListening() {
-		if (listening) {
-			ExpoSpeechRecognitionModule.stop();
-			return;
-		}
+	async function startListening() {
 		setMicError(null);
 		const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
 		if (!permission.granted) {
@@ -254,59 +251,53 @@ export function RecordingScreen() {
 		ExpoSpeechRecognitionModule.start({ lang: "ta-IN", continuous: true, interimResults: true });
 	}
 
-	// "Done" only visibly stops the mic - the list already on screen (built
-	// live) doesn't get replaced. The authoritative full-transcript pass
-	// still runs, but silently: reconcileWithLive diffs its result against
-	// what's showing and only the rows that actually changed get touched
-	// (and briefly highlighted) - if it agrees with the live parse, which is
-	// the common case, nothing visibly happens at all.
-	async function handleDone() {
+	function toggleListening() {
 		if (listening) ExpoSpeechRecognitionModule.stop();
-		setFinalized(true);
-		// Let any segment ops call still in flight settle first - otherwise it
-		// could resolve after reconciliation and silently re-apply on top of
-		// the just-reconciled list, undoing what reconciliation just fixed.
-		await opsChainRef.current;
-		const current = liveItemsRef.current;
-		await saveFinalizedList(current);
-		setLastList(current);
-		await refreshConnectionState(); // a key may have just been auto-provisioned
+		else startListening();
+	}
 
-		setReconciling(true);
+	// Runs every time recording stops, whether the person tapped the mic to
+	// stop it or the OS ended it on its own (silence timeout) - "Continue"
+	// exists precisely so an unexpected auto-stop isn't a dead end.
+	const prevListeningRef = useRef(false);
+	useEffect(() => {
+		if (prevListeningRef.current && !listening && segmentsRef.current.length > 0) {
+			settleAfterStop();
+		}
+		prevListeningRef.current = listening;
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [listening]);
+
+	async function settleAfterStop() {
+		await saveFinalizedList(itemsRef.current);
+		setLastList(itemsRef.current);
+		await refreshConnectionState(); // a key may have just been auto-provisioned
 		try {
-			const authoritative = await extractItems(segments.join(" "), model);
-			const { merged, changedIds } = reconcileWithLive(liveItemsRef.current, authoritative);
-			setLiveItems(merged);
-			await updateLastList(merged);
-			setLastList(merged);
-			if (changedIds.length > 0) {
-				setHighlightedIds(changedIds);
-				setTimeout(() => setHighlightedIds([]), 1800);
-			}
+			await flushLiveReparse();
+			await updateLastList(itemsRef.current);
+			setLastList(itemsRef.current);
 		} catch (error) {
 			handleOpenRouterError(error);
-		} finally {
-			setReconciling(false);
 		}
 	}
 
-	async function handleOrganize() {
-		setOrganizing(true);
+	async function handleEnrich() {
+		setEnriching(true);
 		try {
-			const categorized = await categorizeItems(liveItems, model);
-			const priced = await estimatePrices(categorized, model);
-			setOrganizedItems(priced);
+			const result = await enrichItems(itemsRef.current);
+			setItems(result);
+			await updateLastList(result);
+			setLastList(result);
 		} catch (error) {
 			handleOpenRouterError(error);
 		} finally {
-			setOrganizing(false);
+			setEnriching(false);
 		}
 	}
 
 	function handleDeleteItem(id: string) {
-		const next = liveItems.filter((item) => item.id !== id);
-		setLiveItems(next);
-		setOrganizedItems((prev) => (prev ? prev.filter((item) => item.id !== id) : prev));
+		const next = itemsRef.current.filter((item) => item.id !== id);
+		setItems(next);
 		setLastList(next);
 		updateLastList(next).catch(() => {
 			// best-effort - the in-memory state above is already correct either way
@@ -315,68 +306,84 @@ export function RecordingScreen() {
 
 	const startNewList = useCallback(() => {
 		ExpoSpeechRecognitionModule.stop();
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+		requestIdRef.current += 1; // invalidate any response still in flight
+		inFlightRef.current = Promise.resolve();
 		setSegments([]);
-		setLiveItems([]);
-		setPendingSegments([]);
-		opsChainRef.current = Promise.resolve();
-		setFinalized(false);
-		setReconciling(false);
-		setHighlightedIds([]);
-		setOrganizedItems(null);
+		setItems([]);
+		setRefreshing(false);
+		setEnriching(false);
 	}, []);
 
-	// Without this, the post-Done screen (or Settings) has nowhere to "pop
-	// back" to, so the hardware back button falls through to Android's
-	// default behavior and exits the app entirely instead of returning to
-	// the recording view.
+	// Without this, the Settings screen (or the stopped/share view) has
+	// nowhere to "pop back" to, so the hardware back button falls through to
+	// Android's default behavior and exits the app entirely instead of
+	// dismissing back to a fresh recording view.
 	useEffect(() => {
-		if (!finalized && !settingsVisible) return;
+		if (!stopped && !settingsVisible) return;
 		const sub = BackHandler.addEventListener("hardwareBackPress", () => {
 			if (settingsVisible) setSettingsVisible(false);
 			else startNewList();
 			return true;
 		});
 		return () => sub.remove();
-	}, [finalized, settingsVisible, startNewList]);
+	}, [stopped, settingsVisible, startNewList]);
 
 	async function handleWhatsAppShare() {
-		const text = buildShareText(liveItems, organizedItems);
+		const text = buildShareText(items);
 		await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`);
 	}
 
 	async function handleShare() {
-		const text = buildShareText(liveItems, organizedItems);
+		const text = buildShareText(items);
 		await Share.share({ message: text });
 	}
 
 	function handleShareAction(action: ShareAction) {
-		if (action === "new") startNewList();
+		if (action === "clear") startNewList();
+		else if (action === "continue") startListening();
 		else if (action === "whatsapp") handleWhatsAppShare();
 		else if (action === "share") handleShare();
 	}
 
+	// Only offer "continue recording" when this list actually has live
+	// speech behind it in this session - a list loaded via "last list" has
+	// no transcript, and resuming the mic onto it would make the next live
+	// re-parse (which always derives fresh from segments) silently discard
+	// it, since items and segments would no longer correspond to each other.
+	const availableActions = useMemo(
+		() => SHARE_ACTIONS.filter((action) => action.action !== "continue" || segments.length > 0),
+		[segments.length],
+	);
+
+	// Grouped-by-category view only once every item has been through
+	// Organize - a mixed categorized/uncategorized list just stays flat
+	// rather than silently dropping the not-yet-categorized rows from view.
 	const grouped = useMemo(() => {
-		if (!organizedItems) return [];
+		if (items.length === 0 || items.some((item) => item.category === null)) return null;
 		return CATEGORIES.map((category) => ({
 			category,
-			items: organizedItems.filter((item) => item.category === category.id),
+			items: items.filter((item) => item.category === category.id),
 		})).filter((group) => group.items.length > 0);
-	}, [organizedItems]);
+	}, [items]);
 
 	const priceSummary = useMemo(() => {
-		if (!organizedItems) return null;
-		const priced = organizedItems.filter((item) => item.estimatedPrice != null);
+		if (!grouped) return null;
+		const priced = items.filter((item) => item.estimatedPrice != null);
 		if (priced.length === 0) return null;
 		const total = priced.reduce((sum, item) => sum + (item.estimatedPrice ?? 0), 0);
-		return { total, pricedCount: priced.length, totalCount: organizedItems.length };
-	}, [organizedItems]);
+		return { total, pricedCount: priced.length, totalCount: items.length };
+	}, [grouped, items]);
+
+	const recentSegments = segments.slice(-2);
 
 	if (settingsVisible) {
 		return (
 			<SettingsScreen
 				onClose={() => setSettingsVisible(false)}
-				selectedModel={model}
-				onSelectModel={handleSelectModel}
 				connected={connected}
 				isAuto={isAuto}
 				connecting={connecting}
@@ -393,14 +400,9 @@ export function RecordingScreen() {
 				<View style={styles.headerLeft}>
 					<ShoppingBagIcon weight="duotone" size={18} color={colors.accent} />
 					<Text style={styles.title}>மளிகை பட்டியல்</Text>
-					{reconciling && (
-						<View style={styles.reconcilingDots}>
-							<LoaderDots variant="fun" />
-						</View>
-					)}
 				</View>
 				<View style={styles.headerRight}>
-					{hasContent && (
+					{items.length > 0 && (
 						<PressableScale style={styles.newListButton} onPress={startNewList}>
 							<FilePlusIcon weight="regular" size={14} color={colors.text} />
 							<Text style={styles.newListButtonText}>புதியது</Text>
@@ -415,7 +417,17 @@ export function RecordingScreen() {
 				</View>
 			</View>
 
-			{!hasContent ? (
+			{segments.length > 0 && (
+				<View style={styles.recentSegments}>
+					{recentSegments.map((segment, i) => (
+						<Text key={`${i}-${segment}`} style={styles.ghost} numberOfLines={1}>
+							{segment}
+						</Text>
+					))}
+				</View>
+			)}
+
+			{items.length === 0 && !listening && segments.length === 0 ? (
 				<View style={styles.emptyState}>
 					<BasketIcon weight="regular" size={44} color={colors.accent} />
 					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
@@ -432,9 +444,7 @@ export function RecordingScreen() {
 						<PressableScale
 							style={styles.lastListLink}
 							onPress={() => {
-								setLiveItems(lastList);
-								setOrganizedItems(null);
-								setFinalized(true);
+								setItems(lastList);
 							}}
 						>
 							<ClockIcon weight="regular" size={13} color={colors.textMuted} />
@@ -444,9 +454,9 @@ export function RecordingScreen() {
 				</View>
 			) : (
 				<ScrollView style={styles.itemScroll} contentContainerStyle={styles.itemScrollContent}>
-					{finalized && !organizedItems && (
-						<AccentButton onPress={handleOrganize} disabled={organizing} style={styles.organizeButton}>
-							{organizing ? (
+					{stopped && !grouped && (
+						<AccentButton onPress={handleEnrich} disabled={enriching} style={styles.organizeButton}>
+							{enriching ? (
 								<>
 									<LoaderDots variant="onAccent" />
 									<Text style={styles.organizeButtonText}>வகைப்படுத்துகிறேன்…</Text>
@@ -467,76 +477,51 @@ export function RecordingScreen() {
 						</Text>
 					)}
 
-					{!organizedItems ? (
-						<View style={styles.itemListCard}>
-							{liveItems.map((item, i) => (
-								<PopIn key={item.id} delay={i * 20}>
-									<ItemRow
-										item={item}
-										divider={i < liveItems.length - 1 || pendingSegments.length > 0}
-										onDelete={listening ? undefined : handleDeleteItem}
-										highlighted={highlightedIds.includes(item.id)}
-									/>
-								</PopIn>
-							))}
-							{pendingSegments.map((segment, i) => (
-								<PopIn key={`pending-${i}`}>
-									<View style={[styles.itemRow, i < pendingSegments.length - 1 && styles.itemRowDivider]}>
-										<Text style={styles.ghost} numberOfLines={1}>
-											{segment}
-										</Text>
-									</View>
-								</PopIn>
-							))}
-						</View>
-					) : (
-						grouped.map((group, gi) => {
-							const CategoryIcon = categoryIcon(group.category.id);
-							return (
-								<PopIn key={group.category.id} delay={gi * 60}>
-									<View style={styles.group}>
-										<View style={styles.groupHeader}>
-											<CategoryIcon weight="regular" size={14} color={categoryColor(group.category.id)} />
-											<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
+					<Animated.View style={refreshAnimatedStyle}>
+						{!grouped ? (
+							<View style={styles.itemListCard}>
+								{items.map((item, i) => (
+									<PopIn key={item.id} delay={i * 20}>
+										<ItemRow item={item} divider={i < items.length - 1} onDelete={listening ? undefined : handleDeleteItem} />
+									</PopIn>
+								))}
+							</View>
+						) : (
+							grouped.map((group, gi) => {
+								const CategoryIcon = categoryIcon(group.category.id);
+								return (
+									<PopIn key={group.category.id} delay={gi * 60}>
+										<View style={styles.group}>
+											<View style={styles.groupHeader}>
+												<CategoryIcon weight="regular" size={14} color={categoryColor(group.category.id)} />
+												<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
+											</View>
+											<View style={styles.itemListCard}>
+												{group.items.map((item, i) => (
+													<PopIn key={item.id} delay={i * 30}>
+														<ItemRow item={item} divider={i < group.items.length - 1} onDelete={handleDeleteItem} />
+													</PopIn>
+												))}
+											</View>
 										</View>
-										<View style={styles.itemListCard}>
-											{group.items.map((item, i) => (
-												<PopIn key={item.id} delay={i * 30}>
-													<ItemRow item={item} divider={i < group.items.length - 1} onDelete={handleDeleteItem} />
-												</PopIn>
-											))}
-										</View>
-									</View>
-								</PopIn>
-							);
-						})
-					)}
+									</PopIn>
+								);
+							})
+						)}
+					</Animated.View>
 				</ScrollView>
 			)}
 
 			{micError && <Text style={styles.error}>{micError}</Text>}
 
-			{!finalized ? (
-				// Mic is the one fixed anchor on this screen - it must never move,
-				// so it's centered independently of everything else, not sharing a
-				// flex row with Done (which would re-center the whole row and make
-				// mic visibly jump sideways the moment Done appears). Done is a
-				// separate, absolutely-positioned, secondary-weight control that
-				// slots in beside it without ever touching mic's position.
+			{!stopped ? (
 				<View style={styles.controlsArea}>
 					<MicButton recording={listening} onPress={toggleListening} size={72} />
-					{segments.length > 0 && (
-						<PopIn style={styles.doneSlot}>
-							<PressableScale style={styles.doneButton} onPress={handleDone}>
-								<SealCheckIcon weight="fill" size={22} color={colors.accent} />
-							</PressableScale>
-						</PopIn>
-					)}
 				</View>
 			) : (
 				<View style={styles.shareActionsRow}>
 					<ConfettiBurst />
-					{SHARE_ACTIONS.map((action, i) => (
+					{availableActions.map((action, i) => (
 						<PopIn key={action.action} delay={i * 40}>
 							<ShareIconButton action={action} onPress={() => handleShareAction(action.action)} />
 						</PopIn>
@@ -547,25 +532,15 @@ export function RecordingScreen() {
 	);
 }
 
-// A flagged item shows why (note and/or the reason it was guessed) as a
-// muted subtitle line under the name - the badge alone told the user
-// *something* needed a look, this tells them what.
-// onDelete is optional so the same row can render read-only while the mic
-// is actively listening (hands are busy - see the recording-view usage
-// above) without needing a second component. highlighted briefly marks a
-// row silent reconciliation changed after "Done" (see handleDone).
 function ItemRow({
 	item,
 	divider,
 	onDelete,
-	highlighted,
 }: {
-	item: DraftItem | ListItem;
+	item: Item;
 	divider: boolean;
 	onDelete?: (id: string) => void;
-	highlighted?: boolean;
 }) {
-	const price = "estimatedPrice" in item && item.estimatedPrice != null ? item.estimatedPrice : null;
 	const subtextParts = [item.note, item.needsConfirmation && item.confirmationReason ? REASON_LABELS[item.confirmationReason] : null].filter(
 		(part): part is string => !!part,
 	);
@@ -578,7 +553,7 @@ function ItemRow({
 	}
 
 	return (
-		<View style={[styles.itemRow, divider && styles.itemRowDivider, highlighted && styles.itemRowHighlighted]}>
+		<View style={[styles.itemRow, divider && styles.itemRowDivider]}>
 			<View style={styles.itemMain}>
 				<View style={styles.itemNameRow}>
 					{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
@@ -588,7 +563,7 @@ function ItemRow({
 			</View>
 			<Text style={styles.itemQty}>
 				{item.quantity}
-				{price != null && ` · ₹${Math.round(price)}`}
+				{item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
 			</Text>
 			{onDelete && (
 				<PressableScale onPress={confirmDelete} accessibilityLabel="நீக்கு" style={styles.deleteButton}>
@@ -599,11 +574,6 @@ function ItemRow({
 	);
 }
 
-// Same rounded-square shape/size for all three (consistency), but a
-// bold-duotone icon in its own fun-palette color for personality - solid
-// surface background + a real shadow (see the backgroundColor comment
-// below), not a gradient, since a near-white-to-near-white gradient was
-// too subtle to read as a gradient at all.
 function ShareIconButton({
 	action,
 	onPress,
@@ -643,9 +613,6 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		gap: 8,
 	},
-	reconcilingDots: {
-		transform: [{ scale: 0.5 }],
-	},
 	settingsButton: {
 		width: 28,
 		height: 28,
@@ -680,6 +647,15 @@ const styles = StyleSheet.create({
 		fontSize: 11,
 		fontFamily: fontFamily.bold,
 		color: colors.text,
+	},
+	// Fixed-height reserved space so layout doesn't jump as segments arrive -
+	// shows the last couple of things heard, separate from the formatted
+	// list below (see the "what you said" preview in the design discussion).
+	recentSegments: {
+		width: "100%",
+		minHeight: 34,
+		justifyContent: "center",
+		marginBottom: 6,
 	},
 	emptyState: {
 		flex: 1,
@@ -734,30 +710,11 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 		textAlign: "center",
 	},
-	// position:'relative' + alignItems/justifyContent:'center' centers mic
-	// independently of anything else in here - doneSlot is taken out of flow
-	// entirely (position:'absolute'), so it can never shift mic's position.
 	controlsArea: {
-		position: "relative",
 		width: "100%",
 		height: 104,
 		alignItems: "center",
 		justifyContent: "center",
-	},
-	doneSlot: {
-		position: "absolute",
-		top: 0,
-		bottom: 0,
-		right: 12,
-		justifyContent: "center",
-	},
-	doneButton: {
-		width: 48,
-		height: 48,
-		borderRadius: radius.sm,
-		alignItems: "center",
-		justifyContent: "center",
-		backgroundColor: colors.accentSoft,
 	},
 	itemScroll: {
 		flex: 1,
@@ -799,8 +756,6 @@ const styles = StyleSheet.create({
 		letterSpacing: 0.5,
 		textTransform: "uppercase",
 	},
-	// Single card containing all rows with a dashed rule between them,
-	// matching the web app's draft-item-list - not separate cards per item.
 	itemListCard: {
 		backgroundColor: colors.surface,
 		borderWidth: 1,
@@ -820,12 +775,6 @@ const styles = StyleSheet.create({
 		borderBottomWidth: 1,
 		borderStyle: "dashed",
 		borderBottomColor: colors.borderStrong,
-	},
-	// Brief flag on a row silent reconciliation changed after "Done" (see
-	// handleDone) - cleared a couple seconds later, no animation needed for
-	// this pass.
-	itemRowHighlighted: {
-		backgroundColor: colors.accentSoft,
 	},
 	itemMain: {
 		flex: 1,
@@ -860,7 +809,6 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	ghost: {
-		flex: 1,
 		fontSize: 13,
 		fontFamily: fontFamily.medium,
 		color: colors.textMuted,

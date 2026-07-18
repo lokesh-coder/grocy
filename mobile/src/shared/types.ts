@@ -22,7 +22,13 @@ export type ConfirmationReason =
 	| "uncertain_brand"
 	| "ambiguous_merge";
 
-export type ListItem = {
+// category/estimatedPrice are part of the shape from the moment an item is
+// extracted, not bolted on by a separate type later - they just stay null
+// until the on-demand "Organize" action fills them in (see extract.ts's
+// enrichItems). One shape flows through the whole app: live parsing,
+// editing, history, sharing - no Draft-vs-List conversion at an "Organize"
+// boundary.
+export type Item = {
 	id: string;
 	name: string;
 	brand: string | null;
@@ -35,19 +41,14 @@ export type ListItem = {
 	// Price context separate from the display string (e.g. "₹20/பாக்கெட்")
 	// so it's available structured, not just baked into "quantity" text.
 	priceNote: string | null;
-	category: CategoryId;
+	category: CategoryId | null;
 	// Best-effort, filled in once via a web-search-grounded model call - null
-	// when the model had no confident basis to estimate.
+	// until "Organize" runs, and null again if it had no confident basis to
+	// estimate.
 	estimatedPrice: number | null;
 	// True when the model guessed rather than parsed something explicit -
-	// surfaced as a visual flag in the confirm screen so the user knows what
-	// to double check, instead of silently trusting a guess (see extract.ts).
+	// surfaced as a visual flag so the user knows what to double check,
+	// instead of silently trusting a guess (see extract.ts).
 	needsConfirmation: boolean;
 	confirmationReason: ConfirmationReason | null;
 };
-
-// Items aren't categorized or priced until "Organize" is triggered on demand
-// (see /api/organize and extract.ts) - /api/extract returns them as-is, so
-// Done stays fast and the reasoning pass on every live segment has less to
-// decide.
-export type DraftItem = Omit<ListItem, "category" | "estimatedPrice">;
