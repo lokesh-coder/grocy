@@ -23,7 +23,7 @@ import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
 import { ConfettiBurst } from "../components/ConfettiBurst";
 import { AccentButton } from "../components/AccentButton";
-import { SettingsScreen } from "./SettingsScreen";
+import { SettingsScreen, type SettingsRoute } from "./SettingsScreen";
 import { enrichItems, extractItems, OpenRouterLimitExceededError, OpenRouterNotConnectedError } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
 import { connectOpenRouter, disconnectOpenRouter, getOpenRouterKey, isAutoProvisionedKey } from "../lib/openrouterAuth";
@@ -102,6 +102,12 @@ export function RecordingScreen() {
 	const [lastList, setLastList] = useState<Item[] | null>(null);
 	const [frequentItems, setFrequentItems] = useState<{ name: string; quantity: string }[]>([]);
 	const [settingsVisible, setSettingsVisible] = useState(false);
+	// "connect" when an OpenRouter error sends the user to Settings to fix it
+	// (see handleOpenRouterError) - Connect is hidden from the Settings menu
+	// for now, so this is the only way in, opened directly rather than
+	// requiring a menu hunt while already blocked. "menu" (the default) for
+	// every other way of opening Settings (the gear icon).
+	const [settingsInitialRoute, setSettingsInitialRoute] = useState<SettingsRoute>("menu");
 	const [connected, setConnected] = useState(false);
 	const [connecting, setConnecting] = useState(false);
 	const [isAuto, setIsAuto] = useState(false);
@@ -137,13 +143,17 @@ export function RecordingScreen() {
 	// ever going through handleConnect, so this is the one place that needs
 	// to react to OpenRouter-specific failures from any call.
 	function handleOpenRouterError(error: unknown) {
+		const goToConnect = () => {
+			setSettingsInitialRoute("connect");
+			setSettingsVisible(true);
+		};
 		if (error instanceof OpenRouterLimitExceededError) {
 			Alert.alert("இலவச வரம்பு முடிந்தது", "இந்த மாத இலவச பயன்பாடு முடிந்துவிட்டது. தொடர உங்கள் சொந்த OpenRouter கணக்கை இணைக்கவும்.", [
-				{ text: "சரி", onPress: () => setSettingsVisible(true) },
+				{ text: "சரி", onPress: goToConnect },
 			]);
 		} else if (error instanceof OpenRouterNotConnectedError) {
 			Alert.alert("இணைப்பு தேவை", "பட்டியலை உருவாக்க இணையம் தேவை - சரிபார்த்து மீண்டும் முயற்சிக்கவும், அல்லது அமைப்புகளில் இருந்து இணைக்கவும்.", [
-				{ text: "சரி", onPress: () => setSettingsVisible(true) },
+				{ text: "சரி", onPress: goToConnect },
 			]);
 		} else {
 			Alert.alert("பிழை", error instanceof Error ? error.message : String(error));
@@ -384,6 +394,7 @@ export function RecordingScreen() {
 		return (
 			<SettingsScreen
 				onClose={() => setSettingsVisible(false)}
+				initialRoute={settingsInitialRoute}
 				connected={connected}
 				isAuto={isAuto}
 				connecting={connecting}
@@ -410,7 +421,10 @@ export function RecordingScreen() {
 					)}
 					<PressableScale
 						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
-						onPress={() => setSettingsVisible(true)}
+						onPress={() => {
+							setSettingsInitialRoute("menu");
+							setSettingsVisible(true);
+						}}
 					>
 						<GearIcon weight="regular" size={16} color={connected ? colors.textMuted : colors.accent} />
 					</PressableScale>
@@ -427,11 +441,11 @@ export function RecordingScreen() {
 				</View>
 			)}
 
-			{items.length === 0 && !listening && segments.length === 0 ? (
+			{items.length === 0 ? (
 				<View style={styles.emptyState}>
 					<BasketIcon weight="regular" size={44} color={colors.accent} />
 					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
-					{frequentItems.length > 0 && (
+					{!listening && frequentItems.length > 0 && (
 						<View style={styles.chipsRow}>
 							{frequentItems.map((item) => (
 								<PressableScale key={item.name} style={styles.chip} onPress={() => addSegment(`${item.name} ${item.quantity} வேணும்.`)}>
@@ -440,7 +454,7 @@ export function RecordingScreen() {
 							))}
 						</View>
 					)}
-					{lastList && lastList.length > 0 && (
+					{!listening && lastList && lastList.length > 0 && (
 						<PressableScale
 							style={styles.lastListLink}
 							onPress={() => {
@@ -516,7 +530,7 @@ export function RecordingScreen() {
 
 			{!stopped ? (
 				<View style={styles.controlsArea}>
-					<MicButton recording={listening} onPress={toggleListening} size={72} />
+					<MicButton recording={listening} onPress={toggleListening} size={48} />
 				</View>
 			) : (
 				<View style={styles.shareActionsRow}>
@@ -656,6 +670,10 @@ const styles = StyleSheet.create({
 		minHeight: 34,
 		justifyContent: "center",
 		marginBottom: 6,
+		backgroundColor: colors.surfaceAlt,
+		borderRadius: radius.sm,
+		paddingHorizontal: 10,
+		paddingVertical: 6,
 	},
 	emptyState: {
 		flex: 1,
@@ -809,7 +827,7 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	ghost: {
-		fontSize: 13,
+		fontSize: 11,
 		fontFamily: fontFamily.medium,
 		color: colors.textMuted,
 		fontStyle: "italic",

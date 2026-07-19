@@ -18,14 +18,15 @@ type Props = {
 	size?: number;
 };
 
-// Rounded-square (not circular) mic button - part of a single consistent
-// shape language across the whole app (see theme/tokens.ts's comment on
-// this). Flat solid fill, no gradient/shadow - a continuous subtle
-// "breathing" scale loop while idle (matches the web's `mic-breathe`
-// keyframe), switches to a danger fill with an expanding/fading pulse ring
-// while recording (matches `mic-pulse`).
+// Circular, not rounded-square - a deliberate exception to the app's shape
+// system (see theme/tokens.ts's comment on this), since a record button
+// reading as a circle is a strong enough convention to break the rule for.
+// Flat solid red fill in both states (colors.record, not accent/danger) - no
+// gradient/shadow - a continuous subtle "breathing" scale loop while idle
+// (matches the web's `mic-breathe` keyframe), adds an expanding/fading pulse
+// ring on top while recording (matches `mic-pulse`).
 export function MicButton({ recording, onPress, size = 84 }: Props) {
-	const cornerRadius = Math.round(size * 0.32);
+	const cornerRadius = size / 2;
 	const breathe = useSharedValue(1);
 	const press = useSharedValue(1);
 	const ringScale = useSharedValue(1);
@@ -60,7 +61,7 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 		<View style={{ width: size + 32, height: size + 32, alignItems: "center", justifyContent: "center" }}>
 			<Animated.View
 				style={[
-					{ position: "absolute", width: size, height: size, borderRadius: cornerRadius, borderWidth: 2, borderColor: colors.danger },
+					{ position: "absolute", width: size, height: size, borderRadius: cornerRadius, borderWidth: 2, borderColor: colors.record },
 					ringStyle,
 				]}
 			/>
@@ -81,13 +82,25 @@ export function MicButton({ recording, onPress, size = 84 }: Props) {
 							borderRadius: cornerRadius,
 							alignItems: "center",
 							justifyContent: "center",
-							backgroundColor: recording ? colors.danger : colors.accent,
+							backgroundColor: colors.record,
 						}}
 					>
 						{recording ? (
-							<StopIcon weight="fill" size={Math.round(size * 0.38)} color={colors.onAccent} />
+							<StopIcon
+								weight="duotone"
+								size={Math.round(size * 0.38)}
+								color={colors.onAccent}
+								duotoneColor={colors.onAccent}
+								duotoneOpacity={0.4}
+							/>
 						) : (
-							<MicrophoneIcon weight="fill" size={Math.round(size * 0.38)} color={colors.onAccent} />
+							<MicrophoneIcon
+								weight="duotone"
+								size={Math.round(size * 0.38)}
+								color={colors.onAccent}
+								duotoneColor={colors.onAccent}
+								duotoneOpacity={0.4}
+							/>
 						)}
 					</View>
 				</Pressable>

@@ -23,6 +23,11 @@ export const colors = {
 	dangerSoft: "#fce3dd",
 	dangerGlow: "rgba(221, 75, 57, 0.3)",
 
+	// The mic button's own color, distinct from `danger` - a record button
+	// reads as red at all times (not just while actively recording), matching
+	// common voice-recorder conventions rather than the app's accent color.
+	record: "#dc2626",
+
 	fun: {
 		coral: "#d97757",
 		gold: "#e3a23d",
@@ -47,7 +52,10 @@ export const colors = {
 // on a typical ~48px button, so the two families still read as one system.
 // `pill` is kept only for the quick-add chips, a deliberately distinct
 // "tag" affordance (same split Material Design makes between chips and
-// buttons) - not used for anything else.
+// buttons) - not used for anything else. MicButton is the one other
+// deliberate exception - fully circular, not computed from this scale at
+// all (see its own cornerRadius comment) - a record button reading as a
+// circle is a strong enough convention to break the rounded-square rule for.
 export const radius = {
 	sm: 12,
 	md: 18,
