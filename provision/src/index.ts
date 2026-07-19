@@ -9,15 +9,27 @@ import { Hono } from "hono";
 // - this endpoint is never touched again for that install unless a second
 // key is needed (e.g. after a fresh install/reconnect).
 //
-// Deliberately unauthenticated - the small per-key spending limit bounds
-// the worst case (someone farming free keys by reinstalling costs at most
-// FREE_LIMIT_USD per key, not unlimited exposure). Revisit with rate
-// limiting or Turnstile if that ever becomes a real problem in practice.
+// Still deliberately unauthenticated (no login, no Turnstile) - the small
+// per-key spending limit keeps a single mint cheap. What it no longer
+// tolerates is the same device farming unlimited free budgets by
+// uninstalling and reinstalling: the client sends a hash of its Android ID
+// (stable across reinstalls of this signed app, unlike the on-device
+// SecureStore key - see openrouterAuth.ts), and PROVISIONED_KEYS remembers
+// which device already has a key. A repeat request for a known device gets
+// its existing key back instead of a fresh budget.
 const FREE_LIMIT_USD = 0.5;
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.post("/provision-key", async (c) => {
+	const body = await c.req.json<{ deviceId?: unknown }>().catch(() => ({}) as { deviceId?: unknown });
+	const deviceId = typeof body.deviceId === "string" && body.deviceId ? body.deviceId : null;
+
+	if (deviceId) {
+		const existingKey = await c.env.PROVISIONED_KEYS.get(deviceId);
+		if (existingKey) return c.json({ key: existingKey });
+	}
+
 	const response = await fetch("https://openrouter.ai/api/v1/keys", {
 		method: "POST",
 		headers: {
@@ -47,6 +59,10 @@ app.post("/provision-key", async (c) => {
 	if (!key) {
 		return c.json({ error: "Unexpected provisioning response shape", raw: result }, 502);
 	}
+
+	// No device id (non-Android, or the client couldn't read one) just skips
+	// memoization - it mints every time, same as before this change.
+	if (deviceId) await c.env.PROVISIONED_KEYS.put(deviceId, key);
 
 	return c.json({ key });
 });

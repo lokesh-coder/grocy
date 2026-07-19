@@ -1,6 +1,8 @@
 import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
+import * as Application from "expo-application";
+import { Platform } from "react-native";
 
 // PKCE needs no client secret, so the authorize -> code -> key exchange
 // happens entirely on-device. The resulting key draws from whichever
@@ -27,6 +29,20 @@ const PROVISION_URL = "https://provision.grocy.store/provision-key";
 
 const KEY_STORE_KEY = "grocy-openrouter-key";
 const IS_AUTO_KEY_STORE_KEY = "grocy-openrouter-key-is-auto";
+
+// Android ID (unlike the SecureStore key above) is tied to the device +
+// signing key + user profile, not app-private storage - it survives an
+// uninstall/reinstall of this same signed app. Sent to the provisioning
+// Worker so it can recognize "this device already has a free key" and hand
+// back the same one instead of minting a new $0.50/month budget every time
+// someone reinstalls (see provision/src/index.ts). Hashed before it ever
+// leaves the device - the Worker only needs to compare it, never the raw ID.
+async function getHashedDeviceId(): Promise<string | null> {
+	if (Platform.OS !== "android") return null;
+	const androidId = Application.getAndroidId();
+	if (!androidId) return null;
+	return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, androidId, { encoding: Crypto.CryptoEncoding.HEX });
+}
 
 function base64UrlEncode(bytes: Uint8Array): string {
 	let binary = "";
@@ -92,7 +108,12 @@ export async function ensureOpenRouterKey(): Promise<string | null> {
 	if (existing) return existing;
 
 	try {
-		const response = await fetch(PROVISION_URL, { method: "POST" });
+		const deviceId = await getHashedDeviceId();
+		const response = await fetch(PROVISION_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ deviceId }),
+		});
 		if (!response.ok) return null;
 		const { key } = (await response.json()) as { key: string };
 		if (!key) return null;
@@ -109,4 +130,51 @@ export async function ensureOpenRouterKey(): Promise<string | null> {
 export async function disconnectOpenRouter(): Promise<void> {
 	await SecureStore.deleteItemAsync(KEY_STORE_KEY);
 	await SecureStore.deleteItemAsync(IS_AUTO_KEY_STORE_KEY);
+}
+
+export type KeyUsage = {
+	// All amounts are USD - OpenRouter's real billing currency, distinct from
+	// the ₹ grocery-price estimates shown elsewhere in the app (see
+	// extract.ts's estimatePrices) - the Usage screen labels this explicitly
+	// so it doesn't read as a currency mismatch.
+	usage: number;
+	// null means unlimited (a connected personal account, not the capped
+	// auto-provisioned free tier - see provision/src/index.ts's FREE_LIMIT_USD).
+	limit: number | null;
+	limitRemaining: number | null;
+	limitReset: string | null;
+	isFreeTier: boolean;
+};
+
+// Powers the Settings > Usage page - a plain read against OpenRouter's own
+// key-info endpoint using whatever key is already stored, auto-provisioned
+// or the user's own. Returns null when there's no key to ask about yet
+// (never triggers auto-provisioning itself - that only happens from an
+// actual extraction call, see ensureOpenRouterKey).
+export async function getKeyUsage(): Promise<KeyUsage | null> {
+	const key = await getOpenRouterKey();
+	if (!key) return null;
+
+	const response = await fetch("https://openrouter.ai/api/v1/key", {
+		headers: { Authorization: `Bearer ${key}` },
+	});
+	if (!response.ok) return null;
+
+	const { data } = (await response.json()) as {
+		data: {
+			usage: number;
+			limit: number | null;
+			limit_remaining: number | null;
+			limit_reset: string | null;
+			is_free_tier: boolean;
+		};
+	};
+
+	return {
+		usage: data.usage,
+		limit: data.limit,
+		limitRemaining: data.limit_remaining,
+		limitReset: data.limit_reset,
+		isFreeTier: data.is_free_tier,
+	};
 }
