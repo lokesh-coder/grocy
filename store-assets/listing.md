@@ -85,17 +85,11 @@ architecture (almost no backend, mostly direct-to-OpenRouter) doesn't map
 cleanly onto the form's usual assumptions. The accurate, honest answers:
 
 **Does your app collect or share any of the required user data types?**
-Yes — but not *to the developer*. Be precise here rather than picking
-"No data collected," since the transcript/list text you speak *is*
-transmitted off the device (to OpenRouter, using an API key stored on the
-device - either an auto-provisioned free one or a connected personal
-account), even though Grocy's developer never sees or stores it. The one
-Grocy-operated endpoint (`provision/`) only ever receives a "give me a
-key" request with no list content, voice data, or personal information in
-it at all.
+Yes. Be precise here rather than picking "No data collected" — two
+different things need declaring:
 
-**Data type to declare**: App activity → *User-generated content* (the
-transcribed grocery list text).
+**Data type 1**: App activity → *User-generated content* (the transcribed
+grocery list text).
 - Collected? No (not stored by the app developer)
 - Shared? Yes — with OpenRouter, a third-party AI service, using a key
   stored on the user's device
@@ -108,14 +102,34 @@ transcribed grocery list text).
   stored by the developer); local app data clears on uninstall; OpenRouter
   account data is managed through the user's own OpenRouter account
 
+**Data type 2**: Device or other IDs → a one-way hash of the device's
+Android ID, sent to Grocy's own `provision/` endpoint the first time a free
+key is issued (see `mobile/src/lib/openrouterAuth.ts`'s `getHashedDeviceId`
+and `provision/src/index.ts`). This is **collected by the developer**
+(stored server-side in a small key-value store, paired with the issued
+key) - unlike everything else in this app, which stays off Grocy's
+infrastructure entirely.
+- Collected? Yes — stored in Grocy's own KV store
+- Shared? No — never sent to OpenRouter or anyone else, only used
+  internally to recognize a returning device
+- Purpose: Fraud prevention / abuse prevention (stops reinstalling the app
+  from resetting the free-tier spending cap every time)
+- Is this data processed ephemerally? No — it's retained (as a hash, not
+  the raw ID) for as long as that device's free-tier key is in use
+- Is data encrypted in transit? Yes (HTTPS)
+- Can users request data deletion? Yes, on request via the contact email
+  below — though the stored value is already a one-way hash with no other
+  identifying information attached to it
+
 **Everything else (location, contacts, photos, financial info, health,
 messages, etc.)**: Not collected, not shared — Grocy has no access to any
 of it.
 
 **Security practices section**:
 - "Data is encrypted in transit" → Yes
-- "You can request that data be deleted" → Not applicable / no data is
-  retained by the developer to delete
+- "You can request that data be deleted" → Yes (the device-ID hash noted
+  above, on request via the contact email - everything else has nothing
+  retained by the developer to delete)
 - "Committed to Play Families Policy" → No (not directed at children)
 
 ## App access (sign-in details)

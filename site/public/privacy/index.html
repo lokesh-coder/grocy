@@ -24,15 +24,15 @@
   <p>OpenRouter's own handling of this data is governed by <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener">OpenRouter's privacy policy</a>, not this one.</p>
 
   <h2>Free plan setup</h2>
-  <p>So the app works immediately without requiring you to create an OpenRouter account first, the first time it needs a key, your device makes one request to a small Grocy-operated endpoint that issues a free, spending-capped OpenRouter key. <strong>This request contains no grocery list content, no voice data, and no personal information</strong> — it is a single "issue me a key" call. Grocy's developer does not log or retain anything from it beyond standard, aggregate infrastructure metrics (like request counts) that Cloudflare, the hosting provider, provides for any web request. Once issued, the key is stored on your device and used directly with OpenRouter for everything else — this endpoint isn't involved again unless a new key is needed (e.g. after reinstalling).</p>
+  <p>So the app works immediately without requiring you to create an OpenRouter account first, the first time it needs a key, your device makes one request to a small Grocy-operated endpoint that issues a free, spending-capped OpenRouter key. <strong>This request contains no grocery list content and no voice data.</strong> It does include a one-way hash of your device's Android ID — not the raw ID, and not linked to your name, an account, or any profile — used solely to recognize a returning device: this stops uninstalling and reinstalling the app from resetting the free monthly budget every time, since a recognized device gets its existing key back instead of a new one. Grocy's developer does not log or retain anything else from this request beyond standard, aggregate infrastructure metrics (like request counts) that Cloudflare, the hosting provider, provides for any web request. Once issued, the key is stored on your device and used directly with OpenRouter for everything else — this endpoint isn't involved again unless a new key is needed.</p>
 
   <h2>What's stored, and where</h2>
   <ul>
     <li><strong>Your OpenRouter API key</strong> — stored only on your device, in Android's encrypted secure storage (Keystore-backed). Never transmitted anywhere except directly to OpenRouter with each request.</li>
     <li><strong>List history and quick-add suggestions</strong> — stored only on your device (local app storage). Uninstalling the app or clearing its storage removes this permanently.</li>
-    <li><strong>Model preference</strong> — a small local setting for which AI model to use, stored only on your device.</li>
+    <li><strong>A one-way hash of your device's Android ID, paired with your issued free-tier key</strong> — stored on Grocy's provisioning server (not on your device), only to recognize a returning device as described above. The hash can't be reversed to reveal your device ID, and isn't paired with any other information about you.</li>
   </ul>
-  <p>None of this is uploaded to, or visible to, Grocy's developer, because there is nothing on the other end to receive it.</p>
+  <p>Other than that device-ID hash needed to prevent free-tier abuse, none of this is uploaded to, or visible to, Grocy's developer, because there is nothing on the other end to receive it.</p>
 
   <h2>What Grocy does not do</h2>
   <ul>
