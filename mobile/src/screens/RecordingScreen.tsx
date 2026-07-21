@@ -2,27 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, BackHandler, Linking, ScrollView, Share, StatusBar, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import {
-	BasketIcon,
-	ClockIcon,
-	FilePlusIcon,
-	GearIcon,
-	MagicWandIcon,
-	MicrophoneIcon,
-	ShareNetworkIcon,
-	ShoppingBagIcon,
-	TrashSimpleIcon,
-	WarningCircleIcon,
-	WhatsappLogoIcon,
-	type Icon,
-} from "phosphor-react-native";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { CircleAlert, Clock, MessageCircle, Settings, Share2, ShoppingBasket, Trash2, WandSparkles } from "lucide-react-native";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
-import { MicButton } from "../components/MicButton";
+import { ConfettiBurst } from "../components/ConfettiBurst";
+import { FrequentItemsSheet } from "../components/FrequentItemsSheet";
 import { LoaderDots } from "../components/LoaderDots";
 import { PopIn } from "../components/PopIn";
 import { PressableScale } from "../components/PressableScale";
-import { ConfettiBurst } from "../components/ConfettiBurst";
-import { AccentButton } from "../components/AccentButton";
+import { RecordCard } from "../components/RecordCard";
 import { SettingsScreen, type SettingsRoute } from "./SettingsScreen";
 import { enrichItems, extractItems, OpenRouterLimitExceededError, OpenRouterNotConnectedError } from "../lib/extract";
 import { getFrequentItems, getLastList, saveFinalizedList, updateLastList } from "../lib/listHistory";
@@ -44,16 +32,17 @@ const REASON_LABELS: Record<ConfirmationReason, string> = {
 
 // How long to wait after the last finalized speech segment before actually
 // calling the model - talking fast otherwise queues up one full-context call
-// per segment and the visible list lags noticeably behind speech.
-const LIVE_REPARSE_DEBOUNCE_MS = 550;
+// per segment and the visible list lags noticeably behind speech. Widened
+// from 550ms - every pause past this fires a full paid re-parse, so a
+// longer window directly cuts call count for anyone talking in natural
+// bursts, at a barely-perceptible added-lag cost.
+const LIVE_REPARSE_DEBOUNCE_MS = 950;
 
-type ShareAction = "continue" | "whatsapp" | "share" | "clear";
-const SHARE_ACTIONS: Array<{ action: ShareAction; Icon: Icon; label: string; color: string }> = [
-	{ action: "continue", Icon: MicrophoneIcon, label: "தொடரவும்", color: colors.fun.sage },
-	{ action: "whatsapp", Icon: WhatsappLogoIcon, label: "WhatsApp", color: colors.fun.blue },
-	{ action: "share", Icon: ShareNetworkIcon, label: "பகிரவும்", color: colors.fun.berry },
-	{ action: "clear", Icon: FilePlusIcon, label: "புதியது", color: colors.fun.gold },
-];
+// How long the one-shot confetti stays mounted after a stop - ConfettiBurst
+// plays its animation once on mount with no replay mechanism (see its own
+// file), so re-triggering it means re-mounting it for a short window rather
+// than calling some "play" method.
+const CELEBRATE_MS = 1000;
 
 function buildShareText(items: Item[]): string {
 	const priced = items.filter((item) => item.estimatedPrice != null);
@@ -88,6 +77,7 @@ export function RecordingScreen() {
 	const [items, setItems] = useState<Item[]>([]);
 	const [refreshing, setRefreshing] = useState(false);
 	const [enriching, setEnriching] = useState(false);
+	const [celebrating, setCelebrating] = useState(false);
 	const itemsRef = useRef<Item[]>([]);
 	const segmentsRef = useRef<string[]>([]);
 	// Guards against a stale response overwriting a newer one when two live
@@ -99,6 +89,8 @@ export function RecordingScreen() {
 	const requestIdRef = useRef(0);
 	const inFlightRef = useRef<Promise<void>>(Promise.resolve());
 	const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const celebrateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const frequentSheetRef = useRef<BottomSheetModal>(null);
 	const [lastList, setLastList] = useState<Item[] | null>(null);
 	const [frequentItems, setFrequentItems] = useState<{ name: string; quantity: string }[]>([]);
 	const [settingsVisible, setSettingsVisible] = useState(false);
@@ -111,11 +103,6 @@ export function RecordingScreen() {
 	const [connected, setConnected] = useState(false);
 	const [connecting, setConnecting] = useState(false);
 	const [isAuto, setIsAuto] = useState(false);
-
-	// Stopped-with-content is the only "mode" this screen has - everything
-	// else (empty state vs list, mic vs share/clear/continue row) derives
-	// from these two booleans, not a stored flag.
-	const stopped = !listening && items.length > 0;
 
 	const refreshOpacity = useSharedValue(1);
 	useEffect(() => {
@@ -266,9 +253,10 @@ export function RecordingScreen() {
 		else startListening();
 	}
 
-	// Runs every time recording stops, whether the person tapped the mic to
-	// stop it or the OS ended it on its own (silence timeout) - "Continue"
-	// exists precisely so an unexpected auto-stop isn't a dead end.
+	// Runs every time recording stops, whether the person tapped the record
+	// chip to stop it or the OS ended it on its own (silence timeout) - the
+	// record chip staying put (always able to resume) is precisely why an
+	// unexpected auto-stop isn't a dead end anymore.
 	const prevListeningRef = useRef(false);
 	useEffect(() => {
 		if (prevListeningRef.current && !listening && segmentsRef.current.length > 0) {
@@ -288,6 +276,12 @@ export function RecordingScreen() {
 			setLastList(itemsRef.current);
 		} catch (error) {
 			handleOpenRouterError(error);
+			return;
+		}
+		if (itemsRef.current.length > 0) {
+			setCelebrating(true);
+			if (celebrateTimerRef.current) clearTimeout(celebrateTimerRef.current);
+			celebrateTimerRef.current = setTimeout(() => setCelebrating(false), CELEBRATE_MS);
 		}
 	}
 
@@ -326,21 +320,25 @@ export function RecordingScreen() {
 		setItems([]);
 		setRefreshing(false);
 		setEnriching(false);
+		setCelebrating(false);
 	}, []);
 
-	// Without this, the Settings screen (or the stopped/share view) has
-	// nowhere to "pop back" to, so the hardware back button falls through to
-	// Android's default behavior and exits the app entirely instead of
-	// dismissing back to a fresh recording view.
+	// Without this, the Settings screen (or a non-empty list) has nowhere to
+	// "pop back" to, so the hardware back button falls through to Android's
+	// default behavior and exits the app entirely instead of dismissing back
+	// to a fresh recording view. Keyed off items.length now (not a "stopped"
+	// mode) since the record card no longer swaps to a different row once
+	// stopped - there's just "is there something to lose" either way.
+	const hasContent = items.length > 0;
 	useEffect(() => {
-		if (!stopped && !settingsVisible) return;
+		if (!hasContent && !settingsVisible) return;
 		const sub = BackHandler.addEventListener("hardwareBackPress", () => {
 			if (settingsVisible) setSettingsVisible(false);
 			else startNewList();
 			return true;
 		});
 		return () => sub.remove();
-	}, [stopped, settingsVisible, startNewList]);
+	}, [hasContent, settingsVisible, startNewList]);
 
 	async function handleWhatsAppShare() {
 		const text = buildShareText(items);
@@ -352,22 +350,10 @@ export function RecordingScreen() {
 		await Share.share({ message: text });
 	}
 
-	function handleShareAction(action: ShareAction) {
-		if (action === "clear") startNewList();
-		else if (action === "continue") startListening();
-		else if (action === "whatsapp") handleWhatsAppShare();
-		else if (action === "share") handleShare();
+	function handleSelectFrequent(item: { name: string; quantity: string }) {
+		addSegment(`${item.name} ${item.quantity} வேணும்.`);
+		frequentSheetRef.current?.dismiss();
 	}
-
-	// Only offer "continue recording" when this list actually has live
-	// speech behind it in this session - a list loaded via "last list" has
-	// no transcript, and resuming the mic onto it would make the next live
-	// re-parse (which always derives fresh from segments) silently discard
-	// it, since items and segments would no longer correspond to each other.
-	const availableActions = useMemo(
-		() => SHARE_ACTIONS.filter((action) => action.action !== "continue" || segments.length > 0),
-		[segments.length],
-	);
 
 	// Grouped-by-category view only once every item has been through
 	// Organize - a mixed categorized/uncategorized list just stays flat
@@ -388,8 +374,6 @@ export function RecordingScreen() {
 		return { total, pricedCount: priced.length, totalCount: items.length };
 	}, [grouped, items]);
 
-	const recentSegments = segments.slice(-2);
-
 	if (settingsVisible) {
 		return (
 			<SettingsScreen
@@ -405,45 +389,24 @@ export function RecordingScreen() {
 	}
 
 	return (
-		<View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 10 }]}>
+		<View style={styles.container}>
 			<StatusBar barStyle="dark-content" />
-			<View style={styles.header}>
-				<View style={styles.headerLeft}>
-					<ShoppingBagIcon weight="duotone" size={18} color={colors.accent} />
-					<Text style={styles.title}>மளிகை பட்டியல்</Text>
-				</View>
-				<View style={styles.headerRight}>
-					{items.length > 0 && (
-						<PressableScale style={styles.newListButton} onPress={startNewList}>
-							<FilePlusIcon weight="regular" size={14} color={colors.text} />
-							<Text style={styles.newListButtonText}>புதியது</Text>
-						</PressableScale>
-					)}
-					<PressableScale
-						style={[styles.settingsButton, !connected && styles.settingsButtonAttention]}
-						onPress={() => {
-							setSettingsInitialRoute("menu");
-							setSettingsVisible(true);
-						}}
-					>
-						<GearIcon weight="regular" size={16} color={connected ? colors.textMuted : colors.accent} />
-					</PressableScale>
-				</View>
+			<View style={[styles.header, { marginTop: insets.top + 16 }]}>
+				<Text style={styles.title}>மளிகை பொருட்கள் ({items.length})</Text>
+				<PressableScale
+					style={styles.settingsButton}
+					onPress={() => {
+						setSettingsInitialRoute("menu");
+						setSettingsVisible(true);
+					}}
+				>
+					<Settings size={19} color={connected ? colors.textMuted : colors.accent} strokeWidth={2.25} />
+				</PressableScale>
 			</View>
-
-			{segments.length > 0 && (
-				<View style={styles.recentSegments}>
-					{recentSegments.map((segment, i) => (
-						<Text key={`${i}-${segment}`} style={styles.ghost} numberOfLines={1}>
-							{segment}
-						</Text>
-					))}
-				</View>
-			)}
 
 			{items.length === 0 ? (
 				<View style={styles.emptyState}>
-					<BasketIcon weight="regular" size={44} color={colors.accent} />
+					<ShoppingBasket size={44} color={colors.accent} strokeWidth={2} />
 					<Text style={styles.placeholder}>பேசும்போது உங்கள் வார்த்தைகள் இங்கே தோன்றும்.</Text>
 					{!listening && frequentItems.length > 0 && (
 						<View style={styles.chipsRow}>
@@ -461,29 +424,17 @@ export function RecordingScreen() {
 								setItems(lastList);
 							}}
 						>
-							<ClockIcon weight="regular" size={13} color={colors.textMuted} />
+							<Clock size={13} color={colors.textMuted} strokeWidth={2.25} />
 							<Text style={styles.lastListLinkText}>கடைசி பட்டியலைப் பார்</Text>
 						</PressableScale>
 					)}
 				</View>
 			) : (
-				<ScrollView style={styles.itemScroll} contentContainerStyle={styles.itemScrollContent}>
-					{stopped && !grouped && (
-						<AccentButton onPress={handleEnrich} disabled={enriching} style={styles.organizeButton}>
-							{enriching ? (
-								<>
-									<LoaderDots variant="onAccent" />
-									<Text style={styles.organizeButtonText}>வகைப்படுத்துகிறேன்…</Text>
-								</>
-							) : (
-								<>
-									<MagicWandIcon weight="fill" size={17} color={colors.onAccent} />
-									<Text style={styles.organizeButtonText}>வகைப்படுத்தி விலை காட்டு</Text>
-								</>
-							)}
-						</AccentButton>
-					)}
-
+				<ScrollView
+					style={styles.itemScroll}
+					contentContainerStyle={[styles.itemScrollContent, { paddingBottom: insets.bottom + 220 }]}
+					showsVerticalScrollIndicator={false}
+				>
 					{priceSummary && (
 						<Text style={styles.priceSummary}>
 							மதிப்பிடப்பட்ட மொத்தம்: ₹{Math.round(priceSummary.total)}
@@ -493,10 +444,10 @@ export function RecordingScreen() {
 
 					<Animated.View style={refreshAnimatedStyle}>
 						{!grouped ? (
-							<View style={styles.itemListCard}>
+							<View>
 								{items.map((item, i) => (
 									<PopIn key={item.id} delay={i * 20}>
-										<ItemRow item={item} divider={i < items.length - 1} onDelete={listening ? undefined : handleDeleteItem} />
+										<ItemRow item={item} onDelete={listening ? undefined : handleDeleteItem} />
 									</PopIn>
 								))}
 							</View>
@@ -507,13 +458,13 @@ export function RecordingScreen() {
 									<PopIn key={group.category.id} delay={gi * 60}>
 										<View style={styles.group}>
 											<View style={styles.groupHeader}>
-												<CategoryIcon weight="regular" size={14} color={categoryColor(group.category.id)} />
+												<CategoryIcon size={14} color={categoryColor(group.category.id)} strokeWidth={2.25} />
 												<Text style={[styles.groupTitle, { color: categoryColor(group.category.id) }]}>{group.category.ta}</Text>
 											</View>
-											<View style={styles.itemListCard}>
+											<View>
 												{group.items.map((item, i) => (
 													<PopIn key={item.id} delay={i * 30}>
-														<ItemRow item={item} divider={i < group.items.length - 1} onDelete={handleDeleteItem} />
+														<ItemRow item={item} onDelete={handleDeleteItem} />
 													</PopIn>
 												))}
 											</View>
@@ -523,36 +474,46 @@ export function RecordingScreen() {
 							})
 						)}
 					</Animated.View>
+
+					<View style={styles.bottomIconsRow}>
+						{!listening && !grouped && (
+							<PressableScale onPress={handleEnrich} disabled={enriching} style={styles.bottomIconButton} accessibilityLabel="வகைப்படுத்து">
+								{enriching ? <LoaderDots variant="fun" /> : <WandSparkles size={19} color={colors.textMuted} strokeWidth={2.25} />}
+							</PressableScale>
+						)}
+						<PressableScale onPress={handleWhatsAppShare} style={styles.bottomIconButton} accessibilityLabel="WhatsApp">
+							<MessageCircle size={19} color={colors.textMuted} strokeWidth={2.25} />
+						</PressableScale>
+						<PressableScale onPress={handleShare} style={styles.bottomIconButton} accessibilityLabel="பகிரவும்">
+							<Share2 size={19} color={colors.textMuted} strokeWidth={2.25} />
+						</PressableScale>
+					</View>
 				</ScrollView>
 			)}
 
 			{micError && <Text style={styles.error}>{micError}</Text>}
 
-			{!stopped ? (
-				<View style={styles.controlsArea}>
-					<MicButton recording={listening} onPress={toggleListening} size={48} />
-				</View>
-			) : (
-				<View style={styles.shareActionsRow}>
-					<ConfettiBurst />
-					{availableActions.map((action, i) => (
-						<PopIn key={action.action} delay={i * 40}>
-							<ShareIconButton action={action} onPress={() => handleShareAction(action.action)} />
-						</PopIn>
-					))}
-				</View>
-			)}
+			<View style={[styles.floatingCardWrap, { bottom: insets.bottom + 10 }]}>
+				{celebrating && <ConfettiBurst />}
+				<RecordCard
+					segments={segments}
+					listening={listening}
+					onToggleRecord={toggleListening}
+					onOpenFrequent={() => frequentSheetRef.current?.present()}
+					onClear={startNewList}
+				/>
+			</View>
+
+			<FrequentItemsSheet ref={frequentSheetRef} items={frequentItems} onSelect={handleSelectFrequent} />
 		</View>
 	);
 }
 
 function ItemRow({
 	item,
-	divider,
 	onDelete,
 }: {
 	item: Item;
-	divider: boolean;
 	onDelete?: (id: string) => void;
 }) {
 	const subtextParts = [item.note, item.needsConfirmation && item.confirmationReason ? REASON_LABELS[item.confirmationReason] : null].filter(
@@ -567,39 +528,25 @@ function ItemRow({
 	}
 
 	return (
-		<View style={[styles.itemRow, divider && styles.itemRowDivider]}>
-			<View style={styles.itemMain}>
-				<View style={styles.itemNameRow}>
-					{item.needsConfirmation && <WarningCircleIcon weight="fill" size={14} color={colors.fun.gold} />}
-					<Text style={styles.itemName}>{item.name}</Text>
-				</View>
-				{subtextParts.length > 0 && <Text style={styles.itemSubtext}>{subtextParts.join(" · ")}</Text>}
+		<View style={styles.itemRow}>
+			<View style={styles.itemLine}>
+				{item.needsConfirmation && <CircleAlert size={13} color={colors.fun.gold} fill={colors.fun.gold} strokeWidth={2} />}
+				<Text style={styles.itemName} numberOfLines={1}>
+					{item.name}
+				</Text>
+				<View style={styles.itemLeader} />
+				<Text style={styles.itemQty}>
+					{item.quantity}
+					{item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
+				</Text>
+				{onDelete && (
+					<PressableScale onPress={confirmDelete} accessibilityLabel="நீக்கு" style={styles.deleteButton}>
+						<Trash2 size={14} color={colors.textMuted} strokeWidth={2.25} />
+					</PressableScale>
+				)}
 			</View>
-			<Text style={styles.itemQty}>
-				{item.quantity}
-				{item.estimatedPrice != null && ` · ₹${Math.round(item.estimatedPrice)}`}
-			</Text>
-			{onDelete && (
-				<PressableScale onPress={confirmDelete} accessibilityLabel="நீக்கு" style={styles.deleteButton}>
-					<TrashSimpleIcon weight="regular" size={15} color={colors.textMuted} />
-				</PressableScale>
-			)}
+			{subtextParts.length > 0 && <Text style={styles.itemSubtext}>{subtextParts.join(" · ")}</Text>}
 		</View>
-	);
-}
-
-function ShareIconButton({
-	action,
-	onPress,
-}: {
-	action: { Icon: Icon; label: string; color: string };
-	onPress: () => void;
-}) {
-	const { Icon } = action;
-	return (
-		<PressableScale onPress={onPress} accessibilityLabel={action.label} style={styles.iconButton}>
-			<Icon weight="duotone" size={24} color={action.color} duotoneColor={action.color} duotoneOpacity={0.35} />
-		</PressableScale>
 	);
 }
 
@@ -617,63 +564,21 @@ const styles = StyleSheet.create({
 		width: "100%",
 		marginBottom: 10,
 	},
-	headerLeft: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 6,
-	},
-	headerRight: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 8,
-	},
+	// Flat, borderless icon button - no bordered chip/background, matching
+	// every other utility icon in the app now (RecordCard's plus/clear,
+	// the bottom-of-list actions) instead of standing out as its own style.
+	// "Needs attention" (not connected) is conveyed by the icon's own color
+	// alone (see the color prop at the call site), not a background swap.
 	settingsButton: {
-		width: 28,
-		height: 28,
-		borderRadius: radius.sm,
+		width: 36,
+		height: 36,
 		alignItems: "center",
 		justifyContent: "center",
-		borderWidth: 1.2,
-		borderColor: colors.borderStrong,
-		backgroundColor: colors.surface,
-	},
-	settingsButtonAttention: {
-		borderColor: colors.accent,
-		backgroundColor: colors.accentSoft,
 	},
 	title: {
 		fontSize: 16,
 		fontFamily: fontFamily.extrabold,
 		color: colors.text,
-	},
-	newListButton: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 4,
-		paddingHorizontal: 10,
-		paddingVertical: 5,
-		borderRadius: radius.sm,
-		borderWidth: 1.2,
-		borderColor: colors.borderStrong,
-		backgroundColor: colors.surface,
-	},
-	newListButtonText: {
-		fontSize: 11,
-		fontFamily: fontFamily.bold,
-		color: colors.text,
-	},
-	// Fixed-height reserved space so layout doesn't jump as segments arrive -
-	// shows the last couple of things heard, separate from the formatted
-	// list below (see the "what you said" preview in the design discussion).
-	recentSegments: {
-		width: "100%",
-		minHeight: 34,
-		justifyContent: "center",
-		marginBottom: 6,
-		backgroundColor: colors.surfaceAlt,
-		borderRadius: radius.sm,
-		paddingHorizontal: 10,
-		paddingVertical: 6,
 	},
 	emptyState: {
 		flex: 1,
@@ -728,26 +633,16 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 		textAlign: "center",
 	},
-	controlsArea: {
-		width: "100%",
-		height: 104,
-		alignItems: "center",
-		justifyContent: "center",
-	},
 	itemScroll: {
 		flex: 1,
 		width: "100%",
 	},
 	itemScrollContent: {
 		paddingVertical: 8,
-	},
-	organizeButton: {
-		marginBottom: 12,
-	},
-	organizeButtonText: {
-		color: colors.onAccent,
-		fontFamily: fontFamily.bold,
-		fontSize: 15,
+		// paddingBottom is set inline from insets.bottom - the floating
+		// RecordCard's actual height plus its own bottom offset, not a
+		// guessed constant (a static guess wasn't enough clearance on some
+		// devices - see the inline style at the ScrollView call site).
 	},
 	priceSummary: {
 		fontSize: 14,
@@ -774,40 +669,31 @@ const styles = StyleSheet.create({
 		letterSpacing: 0.5,
 		textTransform: "uppercase",
 	},
-	itemListCard: {
-		backgroundColor: colors.surface,
-		borderWidth: 1,
-		borderColor: colors.border,
-		borderRadius: radius.md,
-		paddingHorizontal: 4,
-	},
 	itemRow: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "flex-start",
-		paddingHorizontal: 12,
-		paddingVertical: 10,
-		gap: 8,
-	},
-	itemRowDivider: {
-		borderBottomWidth: 1,
-		borderStyle: "dashed",
-		borderBottomColor: colors.borderStrong,
-	},
-	itemMain: {
-		flex: 1,
+		paddingVertical: 6,
 		gap: 2,
 	},
-	itemNameRow: {
+	itemLine: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 5,
+		gap: 6,
 	},
 	itemName: {
 		fontSize: 14,
 		fontFamily: fontFamily.medium,
 		color: colors.text,
 		flexShrink: 1,
+	},
+	// The dot-leader between name and quantity, filling whatever space is
+	// left in the row - same dashed-border technique the old row divider
+	// used, just applied within a row instead of between rows.
+	itemLeader: {
+		flex: 1,
+		borderBottomWidth: 1,
+		borderStyle: "dashed",
+		borderBottomColor: colors.borderStrong,
+		marginBottom: 4,
+		marginHorizontal: 2,
 	},
 	itemSubtext: {
 		fontSize: 11,
@@ -821,33 +707,30 @@ const styles = StyleSheet.create({
 		color: colors.textMuted,
 	},
 	deleteButton: {
-		width: 26,
-		height: 26,
+		width: 24,
+		height: 24,
 		alignItems: "center",
 		justifyContent: "center",
 	},
-	ghost: {
-		fontSize: 11,
-		fontFamily: fontFamily.medium,
-		color: colors.textMuted,
-		fontStyle: "italic",
-	},
-	shareActionsRow: {
+	// Left-aligned, tight, small - matches the message-action row under a
+	// Claude chat reply, not a centered app-style action bar.
+	bottomIconsRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		justifyContent: "center",
-		gap: 16,
-		paddingVertical: 10,
-		position: "relative",
+		justifyContent: "flex-start",
+		gap: 6,
+		paddingTop: 14,
+		marginBottom: 40,
 	},
-	iconButton: {
-		width: 52,
-		height: 52,
-		borderRadius: radius.sm,
+	bottomIconButton: {
+		width: 34,
+		height: 34,
 		alignItems: "center",
 		justifyContent: "center",
-		backgroundColor: colors.surface,
-		borderWidth: 1,
-		borderColor: colors.border,
+	},
+	floatingCardWrap: {
+		position: "absolute",
+		left: 18,
+		right: 18,
 	},
 });

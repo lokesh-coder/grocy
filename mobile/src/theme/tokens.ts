@@ -4,12 +4,17 @@
 // category color-coding), not a new design invented for the RN app.
 import { Platform } from "react-native";
 
+// Lightened from the original web-ported palette (bg was #f8f5ec, border
+// #eae1cc) - read as noticeably darker/warmer than the Claude app's more
+// neutral, near-white look once the two sat side by side on-device. Text/
+// accent colors are untouched (contrast, brand) - only the
+// background/surface/border tones moved lighter.
 export const colors = {
-	bg: "#f8f5ec",
+	bg: "#faf9f6",
 	surface: "#ffffff",
-	surfaceAlt: "#f1ead9",
-	border: "#eae1cc",
-	borderStrong: "#ddd0af",
+	surfaceAlt: "#f5f2ea",
+	border: "#ece6d8",
+	borderStrong: "#e2d7bd",
 	text: "#2b2620",
 	textMuted: "#8f8574",
 

@@ -1,5 +1,5 @@
 import { StatusBar, StyleSheet, Text, View } from "react-native";
-import { ArrowLeftIcon } from "phosphor-react-native";
+import { ArrowLeft } from "lucide-react-native";
 import { PressableScale } from "./PressableScale";
 import { colors, fontFamily } from "../theme/tokens";
 
@@ -17,7 +17,7 @@ export function SettingsPageHeader({ title, onBack }: Props) {
 			<StatusBar barStyle="dark-content" />
 			<View style={styles.header}>
 				<PressableScale onPress={onBack} style={styles.backButton}>
-					<ArrowLeftIcon weight="bold" size={18} color={colors.text} />
+					<ArrowLeft size={18} color={colors.text} strokeWidth={2.25} />
 				</PressableScale>
 				<Text style={styles.title}>{title}</Text>
 				<View style={styles.backButton} />

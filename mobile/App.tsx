@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import * as SplashScreen from "expo-splash-screen";
 import { RecordingScreen } from "./src/screens/RecordingScreen";
 import { useAppFonts } from "./src/theme/useAppFonts";
@@ -24,11 +25,13 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <View style={{ flex: 1, backgroundColor: colors.bg }}>
-          <RecordingScreen />
-        </View>
-      </SafeAreaProvider>
+      <BottomSheetModalProvider>
+        <SafeAreaProvider>
+          <View style={{ flex: 1, backgroundColor: colors.bg }}>
+            <RecordingScreen />
+          </View>
+        </SafeAreaProvider>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,6 +1,6 @@
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EnvelopeSimpleIcon } from "phosphor-react-native";
+import { Mail } from "lucide-react-native";
 import { AccentButton } from "../components/AccentButton";
 import { SettingsPageHeader } from "../components/SettingsPageHeader";
 import { colors, fontFamily } from "../theme/tokens";
@@ -26,7 +26,7 @@ export function FeedbackScreen({ onBack }: Props) {
 					ஏதேனும் பிழை கண்டீர்களா, அல்லது ஒரு யோசனை இருக்கிறதா? கீழே உள்ள பொத்தானை அழுத்தி மின்னஞ்சல் அனுப்புங்கள் - நேரடியாக பார்க்கிறோம்.
 				</Text>
 				<AccentButton onPress={handleSendFeedback}>
-					<EnvelopeSimpleIcon weight="bold" size={16} color={colors.onAccent} />
+					<Mail size={16} color={colors.onAccent} strokeWidth={2.25} />
 					<Text style={styles.buttonText}>மின்னஞ்சல் அனுப்பு</Text>
 				</AccentButton>
 				<Text style={styles.emailNote}>{FEEDBACK_EMAIL}</Text>

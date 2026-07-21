@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BugIcon, CaretRightIcon, GaugeIcon, InfoIcon, NotePencilIcon, QuestionIcon, type Icon } from "phosphor-react-native";
+import { Bug, ChevronRight, CircleQuestionMark, Gauge, Info, NotebookPen, type LucideIcon } from "lucide-react-native";
 import { PressableScale } from "../components/PressableScale";
 import { SettingsPageHeader } from "../components/SettingsPageHeader";
 import { colors, fontFamily, radius } from "../theme/tokens";
@@ -15,12 +15,12 @@ type Props = {
 // though the screen itself still exists and works (see SettingsScreen's
 // initialRoute, used by RecordingScreen's OpenRouter-error recovery path).
 // Re-enabling it later is just adding one more entry to this list.
-const MENU_ITEMS: Array<{ route: Exclude<SettingsRoute, "menu">; Icon: Icon; label: string }> = [
-	{ route: "instructions", Icon: NotePencilIcon, label: "கூடுதல் வழிமுறைகள்" },
-	{ route: "usage", Icon: GaugeIcon, label: "பயன்பாடு" },
-	{ route: "help", Icon: QuestionIcon, label: "உதவி" },
-	{ route: "feedback", Icon: BugIcon, label: "கருத்து / பிழை அறிக்கை" },
-	{ route: "about", Icon: InfoIcon, label: "Grocy பற்றி" },
+const MENU_ITEMS: Array<{ route: Exclude<SettingsRoute, "menu">; Icon: LucideIcon; label: string }> = [
+	{ route: "instructions", Icon: NotebookPen, label: "கூடுதல் வழிமுறைகள்" },
+	{ route: "usage", Icon: Gauge, label: "பயன்பாடு" },
+	{ route: "help", Icon: CircleQuestionMark, label: "உதவி" },
+	{ route: "feedback", Icon: Bug, label: "கருத்து / பிழை அறிக்கை" },
+	{ route: "about", Icon: Info, label: "Grocy பற்றி" },
 ];
 
 export function SettingsMenu({ onClose, onNavigate }: Props) {
@@ -37,9 +37,9 @@ export function SettingsMenu({ onClose, onNavigate }: Props) {
 							style={[styles.row, i < MENU_ITEMS.length - 1 && styles.rowDivider]}
 							onPress={() => onNavigate(item.route)}
 						>
-							<item.Icon weight="regular" size={18} color={colors.textMuted} />
+							<item.Icon size={18} color={colors.textMuted} strokeWidth={2.25} />
 							<Text style={styles.rowLabel}>{item.label}</Text>
-							<CaretRightIcon weight="bold" size={14} color={colors.textMuted} />
+							<ChevronRight size={14} color={colors.textMuted} strokeWidth={2.25} />
 						</PressableScale>
 					))}
 				</View>

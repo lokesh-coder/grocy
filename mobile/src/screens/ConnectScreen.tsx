@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CheckCircleIcon, LinkBreakIcon, LinkSimpleIcon } from "phosphor-react-native";
+import { CircleCheck, Link2, Link2Off } from "lucide-react-native";
 import { PressableScale } from "../components/PressableScale";
 import { AccentButton } from "../components/AccentButton";
 import { LoaderDots } from "../components/LoaderDots";
@@ -33,11 +33,11 @@ export function ConnectScreen({ onBack, connected, isAuto, connecting, onConnect
 					{connected && !isAuto && (
 						<View style={styles.connectedRow}>
 							<View style={styles.connectedBadge}>
-								<CheckCircleIcon weight="fill" size={16} color={colors.fun.sage} />
+								<CircleCheck size={16} color={colors.fun.sage} fill={colors.fun.sage} strokeWidth={2} />
 								<Text style={styles.connectedText}>சொந்த கணக்கு இணைக்கப்பட்டது · வரம்பின்றி</Text>
 							</View>
 							<PressableScale onPress={onDisconnect} style={styles.disconnectButton}>
-								<LinkBreakIcon weight="regular" size={14} color={colors.danger} />
+								<Link2Off size={14} color={colors.danger} strokeWidth={2.25} />
 								<Text style={styles.disconnectText}>துண்டி</Text>
 							</PressableScale>
 						</View>
@@ -46,7 +46,7 @@ export function ConnectScreen({ onBack, connected, isAuto, connecting, onConnect
 						<>
 							<View style={styles.connectedRow}>
 								<View style={styles.connectedBadge}>
-									<CheckCircleIcon weight="fill" size={16} color={colors.accent} />
+									<CircleCheck size={16} color={colors.accent} fill={colors.accent} strokeWidth={2} />
 									<Text style={styles.connectedText}>இலவச திட்டம் பயன்பாட்டில்</Text>
 								</View>
 							</View>
@@ -58,7 +58,7 @@ export function ConnectScreen({ onBack, connected, isAuto, connecting, onConnect
 									<LoaderDots variant="fun" />
 								) : (
 									<>
-										<LinkSimpleIcon weight="bold" size={14} color={colors.accent} />
+										<Link2 size={14} color={colors.accent} strokeWidth={2.25} />
 										<Text style={styles.upgradeButtonText}>சொந்த கணக்கை இணை</Text>
 									</>
 								)}
@@ -71,7 +71,7 @@ export function ConnectScreen({ onBack, connected, isAuto, connecting, onConnect
 								<LoaderDots variant="onAccent" />
 							) : (
 								<>
-									<LinkSimpleIcon weight="bold" size={16} color={colors.onAccent} />
+									<Link2 size={16} color={colors.onAccent} strokeWidth={2.25} />
 									<Text style={styles.connectButtonText}>OpenRouter கணக்கை இணை</Text>
 								</>
 							)}

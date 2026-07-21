@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/mukta-malar": "^0.4.1",
+    "@gorhom/bottom-sheet": "^5.2.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.4",
     "expo-application": "~57.0.2",
@@ -16,7 +17,7 @@
     "expo-splash-screen": "~57.0.2",
     "expo-status-bar": "~57.0.0",
     "expo-web-browser": "~57.0.1",
-    "phosphor-react-native": "^3.0.6",
+    "lucide-react-native": "^1.25.0",
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-gesture-handler": "~2.32.0",

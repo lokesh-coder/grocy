@@ -1,6 +1,6 @@
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GlobeIcon, GithubLogoIcon, ShieldCheckIcon } from "phosphor-react-native";
+import { ExternalLink, Globe, ShieldCheck } from "lucide-react-native";
 import { PressableScale } from "../components/PressableScale";
 import { SettingsPageHeader } from "../components/SettingsPageHeader";
 import { colors, fontFamily, radius } from "../theme/tokens";
@@ -22,15 +22,15 @@ export function AboutScreen({ onBack }: Props) {
 						குரல் மூலம் தமிழில் மளிகை பட்டியல் உருவாக்க உதவும் ஆப். சொந்த சேவையகம் இல்லை, விளம்பரங்கள் இல்லை.
 					</Text>
 					<PressableScale style={styles.linkRow} onPress={() => Linking.openURL("https://grocy.store")}>
-						<GlobeIcon weight="regular" size={15} color={colors.accent} />
+						<Globe size={15} color={colors.accent} strokeWidth={2.25} />
 						<Text style={styles.linkText}>grocy.store</Text>
 					</PressableScale>
 					<PressableScale style={styles.linkRow} onPress={() => Linking.openURL("https://grocy.store/privacy")}>
-						<ShieldCheckIcon weight="regular" size={15} color={colors.accent} />
+						<ShieldCheck size={15} color={colors.accent} strokeWidth={2.25} />
 						<Text style={styles.linkText}>தனியுரிமைக் கொள்கை</Text>
 					</PressableScale>
 					<PressableScale style={styles.linkRow} onPress={() => Linking.openURL("https://github.com/lokesh-coder/grocy")}>
-						<GithubLogoIcon weight="regular" size={15} color={colors.accent} />
+						<ExternalLink size={15} color={colors.accent} strokeWidth={2.25} />
 						<Text style={styles.linkText}>GitHub</Text>
 					</PressableScale>
 				</View>
